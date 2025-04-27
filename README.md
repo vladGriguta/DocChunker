@@ -9,7 +9,6 @@ A specialized document chunking library designed to handle complex document stru
 - **Multi-format support**: Works with DOCX, PDF, and other document formats
 - **Context preservation**: Maintains relationships between document elements
 - **Customizable chunk size**: Adjustable chunk sizes with intelligent overlap
-- **Azure integration**: Optional Azure AI services integration for enhanced processing
 
 ## Installation
 
