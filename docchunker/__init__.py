@@ -7,7 +7,6 @@ including tables, nested lists, and images in formats like DOCX and PDF.
 
 from docchunker.chunker import DocChunker
 from docchunker.models.chunk import Chunk
-from docchunker.models.document import Document
 
 __version__ = "0.1.0"
-__all__ = ["DocChunker", "Chunk", "Document"]
+__all__ = ["DocChunker", "Chunk"]

@@ -28,19 +28,10 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # Initialize the chunker with custom settings
-    chunker = DocChunker(
-        chunk_size=1000,        # Target size of each chunk in characters
-        chunk_overlap=200,      # Number of characters to overlap between chunks
-        preserve_structure=True,# Preserve document structure when chunking
-        handle_tables=True,     # Specially process tables
-        handle_lists=True,      # Specially process lists
-        handle_images=False,    # Don't process images for this example
-    )
+    chunker = DocChunker(chunk_size=1000)
     
     print("DocChunker initialized with settings:")
     print(f"  Chunk size: {chunker.chunk_size}")
-    print(f"  Chunk overlap: {chunker.chunk_overlap}")
-    print(f"  Preserve structure: {chunker.preserve_structure}")
     
     # Process a sample document
     file_path = samples_dir / "complex_document.docx"
@@ -66,37 +57,9 @@ def main():
     for chunk_type, count in sorted(chunk_types.items(), key=lambda x: x[1], reverse=True):
         print(f"  {chunk_type}: {count}")
     
-    # Display some sample chunks
-    print("\nSample chunks:")
-    samples_shown = 0
-    for chunk in chunks:
-        if samples_shown >= 5:
-            break
-        
-        chunk_type = chunk.metadata.get("type", "unknown")
-        
-        # Show samples of different types
-        if (
-            (chunk_type == Chunk.TYPE_HEADING and "heading" not in [c.metadata.get("type") for c in chunks[:samples_shown]]) or
-            (chunk_type == Chunk.TYPE_TABLE and "table" not in [c.metadata.get("type") for c in chunks[:samples_shown]]) or
-            (chunk_type == Chunk.TYPE_LIST and "list" not in [c.metadata.get("type") for c in chunks[:samples_shown]]) or
-            (chunk_type == Chunk.TYPE_TEXT and "text" not in [c.metadata.get("type") for c in chunks[:samples_shown]]) or
-            (chunk_type == Chunk.TYPE_TABLE_CELL and "table_cell" not in [c.metadata.get("type") for c in chunks[:samples_shown]]) or
-            samples_shown < 2  # Ensure we show at least two samples regardless of type
-        ):
-            print(f"\n--- Chunk {samples_shown + 1} ({chunk_type}) ---")
-            print(f"Text ({min(75, len(chunk.text))} chars): {chunk.text[:75]}...")
-            print(f"Metadata: {json.dumps(chunk.metadata, indent=2)}")
-            samples_shown += 1
-    
     # Save all chunks to JSON
     output_file = output_dir / "chunks.json"
-    with open(output_file, "w") as f:
-        json.dump(
-            [{"text": c.text, "metadata": c.metadata} for c in chunks],
-            f,
-            indent=2
-        )
+    chunker.export_chunks_to_json(chunks, output_file)
     
     print(f"\nAll chunks saved to: {output_file}")
     
