@@ -2,106 +2,73 @@ import pytest
 import yaml
 from pathlib import Path
 from docchunker import DocChunker
-from docchunker.models.chunk import Chunk
 
+def get_yaml_configs():
+    """Discover all YAML configs and their corresponding docx files."""
+    test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
+    yaml_files = list(test_data_dir.glob("*.yaml"))
+    configs = []
+    for yaml_file in yaml_files:
+        with open(yaml_file, 'r') as f:
+            config = yaml.safe_load(f)
+        docx_file = test_data_dir / config['document']
+        if docx_file.exists():
+            configs.append((yaml_file.stem, config, docx_file))
+    return configs
 
-class TestYamlDriven:
-    """Generic test class that uses YAML configurations."""
-    
-    @pytest.fixture
-    def test_data_dir(self):
-        """Get the test data directory."""
-        return Path(__file__).parent.parent / "data" / "unittests"
-    
-    @pytest.fixture
-    def chunker(self):
-        """Create DocChunker instance."""
-        return DocChunker(
-            chunk_size=1000,
-            chunk_overlap=200,
-            preserve_structure=True,
-            handle_lists=True,
-            handle_tables=True
-        )
-    
-    def get_test_configs(self, test_data_dir):
-        """Find all YAML test configurations."""
-        yaml_files = list(test_data_dir.glob("*.yaml"))
-        configs = []
-        
-        for yaml_file in yaml_files:
-            with open(yaml_file, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # Check if corresponding docx exists
-            docx_file = test_data_dir / config['document']
-            if docx_file.exists():
-                configs.append((yaml_file.stem, config, docx_file))
-            else:
-                print(f"Warning: {config['document']} not found for {yaml_file}")
-        
-        return configs
-    
-    def test_all_yaml_configs(self, test_data_dir, chunker):
-        """Test all YAML configurations found in test data directory."""
-        configs = self.get_test_configs(test_data_dir)
-        
-        if not configs:
-            pytest.skip("No valid YAML/DOCX pairs found in test data directory")
-        
-        for test_name, config, docx_file in configs:
-            print(f"\n--- Testing {test_name} ---")
-            self._test_single_config(config, docx_file, chunker)
-    
-    def _test_single_config(self, config, docx_file, chunker):
-        """Test a single YAML configuration."""
-        # Process document
-        chunks = chunker.process_document(str(docx_file))
-        assert len(chunks) > 0, f"No chunks generated for {docx_file}"
-        
-        # Run global checks
+def collect_test_cases():
+    """Flatten all test cases for parameterization."""
+    cases = []
+    for test_name, config, docx_file in get_yaml_configs():
+        # Global checks as a separate test
         if 'global_checks' in config:
-            self._run_global_checks(chunks, config['global_checks'])
-        
-        # Run specific test cases
+            cases.append(
+                pytest.param(
+                    config, docx_file, None, config['global_checks'],
+                    id=f"{test_name}::global_checks"
+                )
+            )
+        # Each test case as a separate test
         if 'test_cases' in config:
             for test_case in config['test_cases']:
-                self._run_test_case(chunks, test_case)
-    
-    def _run_global_checks(self, chunks, global_checks):
-        """Run global document checks."""
-        # Check minimum chunks
+                cases.append(
+                    pytest.param(
+                        config, docx_file, test_case, None,
+                        id=f"{test_name}::{test_case['name']}"
+                    )
+                )
+    return cases
+
+@pytest.fixture
+def chunker():
+    return DocChunker(chunk_size=1000, chunk_overlap=200)
+
+@pytest.mark.parametrize("config, docx_file, test_case, global_checks", collect_test_cases())
+def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
+    if test_case and test_case.get("xfail", False):
+        pytest.xfail("Marked as expected to fail in YAML")
+
+    chunks = chunker.process_document(str(docx_file))
+    assert len(chunks) > 0, f"No chunks generated for {docx_file}"
+
+    if global_checks:
         if 'min_chunks' in global_checks:
             min_chunks = global_checks['min_chunks']
             assert len(chunks) >= min_chunks, \
                 f"Expected at least {min_chunks} chunks, got {len(chunks)}"
-        
-        print(f"✓ Global checks passed for {len(chunks)} chunks")
-
-    def _run_test_case(self, chunks, test_case):
-        """Run a specific test case."""
+    if test_case:
         search_text = test_case['search_text']
         test_name = test_case['name']
-        
-        # Find chunks containing the search text
         matching_chunks = [c for c in chunks if search_text in c.text]
-        
         assert len(matching_chunks) > 0, \
             f"Test '{test_name}': No chunks found containing '{search_text}'"
-        
-        # For each matching chunk, run the checks
         for chunk in matching_chunks:
-            # Check expected context in chunk
             if 'expected_in_chunk' in test_case:
                 for expected_text in test_case['expected_in_chunk']:
                     assert expected_text in chunk.text, \
                         f"Test '{test_name}': Expected '{expected_text}' in same chunk as '{search_text}'"
-            
-            # Check expected metadata
             if 'expected_metadata' in test_case:
                 for key, expected_value in test_case['expected_metadata'].items():
                     actual_value = chunk.metadata.get(key)
                     assert actual_value == expected_value, \
                         f"Test '{test_name}': Expected {key}='{expected_value}', got '{actual_value}'"
-        
-        print(f"✓ Test case '{test_name}' passed ({len(matching_chunks)} matching chunks)")
