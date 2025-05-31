@@ -1,9 +1,4 @@
-"""
-Main chunker module for processing documents with complex structures.
-"""
-
 import os
-from typing import Dict, List, Optional, Union
 import json
 
 from docchunker.models.chunk import Chunk
@@ -48,7 +43,6 @@ class DocChunker:
         self.handle_lists = handle_lists
         self.handle_images = handle_images
         
-        # Initialize processors
         self.processors = {
             "docx": DocxProcessor(
                 chunk_size=chunk_size,
@@ -68,7 +62,7 @@ class DocChunker:
             ),
         }
     
-    def process_document(self, file_path: str) -> List[Chunk]:
+    def process_document(self, file_path: str) -> list[Chunk]:
         """
         Process a document and return a list of chunks.
         
@@ -95,44 +89,9 @@ class DocChunker:
         chunks = processor.chunk(document)
         
         return chunks
+
     
-    def process_documents(self, directory_path: str, recursive: bool = False) -> Dict[str, List[Chunk]]:
-        """
-        Process all supported documents in a directory.
-        
-        Args:
-            directory_path: Path to the directory containing documents
-            recursive: Whether to process documents in subdirectories
-            
-        Returns:
-            Dictionary mapping file paths to lists of chunks
-            
-        Raises:
-            FileNotFoundError: If the directory doesn't exist
-        """
-        if not os.path.exists(directory_path):
-            raise FileNotFoundError(f"Directory not found: {directory_path}")
-        
-        results = {}
-        
-        for root, dirs, files in os.walk(directory_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                extension = get_file_extension(file_path)
-                
-                if extension in self.processors:
-                    try:
-                        chunks = self.process_document(file_path)
-                        results[file_path] = chunks
-                    except Exception as e:
-                        print(f"Error processing {file_path}: {str(e)}")
-            
-            if not recursive:
-                break
-        
-        return results
-    
-    def export_chunks_to_json(self, chunks: List[Chunk], output_file: str) -> None:
+    def export_chunks_to_json(self, chunks: list[Chunk], output_file: str) -> None:
         """
         Export chunks to a JSON file.
         Args:
