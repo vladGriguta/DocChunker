@@ -10,15 +10,14 @@ class DocxParser:
         """Parse DOCX and return tagged elements"""
         doc = docx.Document(file_path)
         elements = []
-        
-        # Process document body elements in order
+
         for element in doc.element.body:
-            if isinstance(element, CT_P):  # Paragraph
+            if isinstance(element, CT_P):
                 para = self._find_paragraph(doc, element)
                 if para and para.text.strip():
                     elements.append(self._process_paragraph(para))
             
-            elif isinstance(element, CT_Tbl):  # Table
+            elif isinstance(element, CT_Tbl):
                 table = self._find_table(doc, element)
                 if table:
                     elements.append(self._process_table(table))
@@ -39,11 +38,11 @@ class DocxParser:
                 return table
         return None
     
+
     def _process_paragraph(self, para):
         """Process a paragraph into tagged format"""
         text = para.text.strip()
         
-        # Detect type
         if para.style.name.startswith('Heading'):
             level = para.style.name.replace('Heading', '').strip() or '1'
             return {
@@ -51,14 +50,37 @@ class DocxParser:
                 "level": int(level),
                 "content": f"<Heading level=\"{level}\">{text}</Heading>"
             }
+
+        # Check for list item via oxml numPr (numbering properties)
+        # para._p is the underlying CT_P element
+        is_list_item_from_oxml = False
+        if para._p.pPr is not None and para._p.pPr.numPr is not None:
+            is_list_item_from_oxml = True
+            # You could potentially extract list level (ilvl) and numbering id (numId) here
+            # list_level = para._p.pPr.numPr.ilvl.val if para._p.pPr.numPr.ilvl is not None else 0
+            # num_id = para._p.pPr.numPr.numId.val if para._p.pPr.numPr.numId is not None else 0
+            
+        if is_list_item_from_oxml:
+            return {
+                "type": "list_item", 
+                "content": f"<ListItem>{text}</ListItem>" # Consider adding level/num_id if needed
+            }
         
-        # Simple list detection
-        elif text.startswith(('- ', '• ', '* ')) or text.split('.')[0].isdigit():
+        # Fallback: Simple list detection based on style name (less reliable but can catch some cases)
+        style_name_lower = para.style.name.lower()
+        if 'list' in style_name_lower or 'bullet' in style_name_lower or 'number' in style_name_lower:
+            return {
+                "type": "list_item",
+                "content": f"<ListItem>{text}</ListItem>"
+            }
+
+        # Fallback: Text-based list detection (least reliable)
+        elif text.startswith(('- ', '• ', '* ')) or (text.split('.')[0].isdigit() and len(text.split('.')[0]) < 3):
             return {
                 "type": "list_item", 
                 "content": f"<ListItem>{text}</ListItem>"
             }
-        
+
         else:
             return {
                 "type": "paragraph",
