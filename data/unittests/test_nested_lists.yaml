@@ -1,0 +1,48 @@
+document: "test_nested_lists.docx"
+description: "Tests nested list processing and context preservation"
+
+# Test cases: search for specific content and verify expected context
+test_cases:
+  - name: "password_recovery_context"
+    search_text: "Password recovery"
+    expected_in_chunk:
+      - "Section 2: Implementation Steps"
+      - "Development workflow:"
+      - "Implement Core Features"
+    expected_metadata:
+      type: "list"
+      list_type: "bullet"
+      depth: 2
+
+  - name: "frontend_team_hierarchy"
+    search_text: "Frontend Team"
+    expected_in_chunk:
+      - "Section 3: Organizational Structure"
+      - "Engineering Department"
+    expected_metadata:
+      type: "list"
+      depth: 1
+
+  - name: "test_case_sequence"
+    search_text: "Test case 10:"
+    expected_in_chunk:
+      - "Section 4: Testing Checklist"
+      - "Complete testing procedure:"
+    expected_metadata:
+      type: "list"
+      list_type: "numbered"
+
+  - name: "project_title_heading"
+    search_text: "Nested Lists Test Document"
+    expected_metadata:
+      type: "heading"
+      level: 1
+
+# Global expectations for the document
+global_checks:
+  min_chunks: 10
+  chunk_types:
+    - "heading"
+    - "text" 
+    - "list"
+  max_empty_chunks: 0
