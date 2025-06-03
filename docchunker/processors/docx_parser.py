@@ -4,18 +4,21 @@ from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
 
 class DocxParser:
-    """Step 1: Parse DOCX to tagged elements"""
-    
+    def __init__(self):
+        self.current_heading_level = 0 
+
     def parse(self, file_path: str) -> list[dict[str, Any]]:
-        """Parse DOCX and return tagged elements"""
+        """Parse DOCX and return a flat list of element dictionaries."""
         doc = docx.Document(file_path)
         elements = []
+        self.current_heading_level = 0
 
         for element in doc.element.body:
             if isinstance(element, CT_P):
                 para = self._find_paragraph(doc, element)
-                if para and para.text.strip():
-                    elements.append(self._process_paragraph(para))
+                if para and para.text.strip():  # Process only if paragraph has non-whitespace text
+                    processed_para_element = self._process_paragraph(para)
+                    elements.append(processed_para_element)
             
             elif isinstance(element, CT_Tbl):
                 table = self._find_table(doc, element)
@@ -37,78 +40,84 @@ class DocxParser:
             if table._element == element:
                 return table
         return None
-    
 
-    def _process_paragraph(self, para):
-        """Process a paragraph into tagged format"""
+    def _process_paragraph(self, para) -> dict[str, Any]:
+        """Process a paragraph into an element dictionary with type, content, level, and num_id for lists."""
         text = para.text.strip()
         
+        # Heading
         if para.style.name.startswith('Heading'):
-            level = para.style.name.replace('Heading', '').strip() or '1'
+            level_str = para.style.name.replace('Heading', '').strip() or '1'
+            heading_level = int(level_str)
+            self.current_heading_level = heading_level  # Update current heading level
             return {
                 "type": "heading",
-                "level": int(level),
-                "content": f"<Heading level=\"{level}\">{text}</Heading>"
+                "level": heading_level,
+                "content": text
             }
 
-        # Check for list item via oxml numPr (numbering properties)
-        # para._p is the underlying CT_P element
-        is_list_item_from_oxml = False
+        # List item from oxml (most reliable)
         if para._p.pPr is not None and para._p.pPr.numPr is not None:
-            is_list_item_from_oxml = True
-            # You could potentially extract list level (ilvl) and numbering id (numId) here
-            # list_level = para._p.pPr.numPr.ilvl.val if para._p.pPr.numPr.ilvl is not None else 0
-            # num_id = para._p.pPr.numPr.numId.val if para._p.pPr.numPr.numId is not None else 0
+            num_pr = para._p.pPr.numPr
+            # ilvl (indentation level) is 0-indexed
+            ilvl = num_pr.ilvl.val if num_pr.ilvl is not None and num_pr.ilvl.val is not None else 0
+            # numId references the numbering definition
+            num_id = num_pr.numId.val if num_pr.numId is not None and num_pr.numId.val is not None else 0 
             
-        if is_list_item_from_oxml:
             return {
-                "type": "list_item", 
-                "content": f"<ListItem>{text}</ListItem>" # Consider adding level/num_id if needed
+                "type": "list_item",
+                "level": ilvl,  # Use ilvl as the 'level' for list items
+                "content": text,
+                "num_id": num_id
             }
         
-        # Fallback: Simple list detection based on style name (less reliable but can catch some cases)
+        # Fallback: Style-based list detection
         style_name_lower = para.style.name.lower()
         if 'list' in style_name_lower or 'bullet' in style_name_lower or 'number' in style_name_lower:
             return {
                 "type": "list_item",
-                "content": f"<ListItem>{text}</ListItem>"
+                "level": 0,  # Default ilvl if unknown
+                "content": text,
+                "num_id": -1 # Indicate unknown num_id for fallback
             }
 
-        # Fallback: Text-based list detection (least reliable)
-        elif text.startswith(('- ', '• ', '* ')) or (text.split('.')[0].isdigit() and len(text.split('.')[0]) < 3):
+        # Fallback: Text-based list detection
+        # Improved to check for dot after number for numbered lists
+        if text.startswith(('- ', '• ', '* ')) or \
+           (text.split('.', 1)[0].isdigit() and len(text.split('.', 1)[0]) < 3 and '.' in text):
             return {
-                "type": "list_item", 
-                "content": f"<ListItem>{text}</ListItem>"
+                "type": "list_item",
+                "level": 0,  # Default ilvl if unknown
+                "content": text,
+                "num_id": -1 # Indicate unknown num_id for fallback
             }
 
-        else:
-            return {
-                "type": "paragraph",
-                "content": f"<Paragraph>{text}</Paragraph>"
-            }
+        # Paragraph
+        return {
+            "type": "paragraph",
+            # Assign level based on the current heading context
+            "level": self.current_heading_level if self.current_heading_level > 0 else 0,
+            "content": text
+        }
     
-    def _process_table(self, table):
-        """Process a table into tagged format"""
-        rows = []
+    def _process_table(self, table) -> dict[str, Any]:
+        """Process a table into an element dictionary with type, content (raw text), and level."""
+        cell_texts = []
         for row in table.rows:
-            cells = []
             for cell in row.cells:
-                # Handle nested content in cells
-                cell_content = []
-                for para in cell.paragraphs:
-                    if para.text.strip():
-                        if para.text.strip().startswith(('- ', '• ', '* ')):
-                            cell_content.append(f"<ListItem>{para.text.strip()}</ListItem>")
-                        else:
-                            cell_content.append(f"<Paragraph>{para.text.strip()}</Paragraph>")
-                
-                cells.append("<Cell>" + "".join(cell_content) + "</Cell>")
-            
-            rows.append("<TableRow>" + "".join(cells) + "</TableRow>")
-        
+                # Concatenate text from all paragraphs within a cell
+                cell_para_texts = [p.text.strip() for p in cell.paragraphs if p.text.strip()]
+                if cell_para_texts:
+                    cell_texts.append(" ".join(cell_para_texts))
+
+        # For simplicity, table content is a single string of all cell texts joined
+        table_content = "\n---\n".join(cell_texts)
+
         return {
             "type": "table",
+            # Assign level based on the current heading context
+            "level": self.current_heading_level if self.current_heading_level > 0 else 0,
             "rows": len(table.rows),
             "cols": len(table.columns),
-            "content": "<Table>" + "".join(rows) + "</Table>"
+            "content": table_content
         }

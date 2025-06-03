@@ -11,11 +11,8 @@ def get_file_extension(file_path: str) -> str:
 
 
 def normalize_whitespace(text: str) -> str:
-    # Replace multiple spaces with single space
     text = re.sub(r'\s+', ' ', text)
-    # Replace multiple newlines with double newline
     text = re.sub(r'\n+', '\n\n', text)
-    # Trim whitespace at start and end
     return text.strip()
 
 
