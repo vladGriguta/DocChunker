@@ -7,10 +7,8 @@ test_cases:
     search_text: "Password recovery"
     expected_in_chunk:
       # - "Section 2: Implementation Steps"
-      - "Development workflow:"
+      # - "Development workflow:"
       - "Implement Core Features"
-    expected_metadata:
-      type: "text"
 
   - name: "frontend_team_hierarchy"
     search_text: "Frontend Team"

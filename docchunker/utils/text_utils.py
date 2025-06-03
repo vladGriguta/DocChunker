@@ -5,6 +5,8 @@ Text processing utilities for document chunking.
 import os
 import re
 
+import tiktoken
+
 
 def get_file_extension(file_path: str) -> str:
     return os.path.splitext(file_path)[1].lower()[1:]
@@ -26,3 +28,11 @@ def extract_keywords(text: str, max_keywords: int = 10) -> list[str]:
         List of keywords
     """
     raise NotImplementedError("Keyword extraction is not implemented yet.")
+
+def count_tokens_in_text(text: str) -> int:
+    """
+    Count the number of tokens in the text using tiktoken. Assuming the embedding model is 'embeddings-large-3' from openai.
+    """
+    encoding = tiktoken.encoding_for_model("embeddings-large-3")
+    tokens = encoding.encode(text)
+    return len(tokens)

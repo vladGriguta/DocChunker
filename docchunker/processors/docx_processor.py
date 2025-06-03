@@ -1,5 +1,5 @@
 from docchunker.models.chunk import Chunk
-from docchunker.processors.docx_chunker import TaggedChunker
+from docchunker.processors.docx_chunker import DocxChunker
 from docchunker.processors.docx_parser import DocxParser
 from docchunker.utils.io_utils import write_json
 
@@ -9,7 +9,7 @@ class DocxProcessor:
     
     def __init__(self, chunk_size: int = 1000):
         self.parser = DocxParser()
-        self.chunker = TaggedChunker(chunk_size)
+        self.chunker = DocxChunker(chunk_size)
     
     def process(self, file_path: str) -> list[Chunk]:
         """Process DOCX file and return chunks"""
@@ -18,6 +18,7 @@ class DocxProcessor:
         write_json('parsed_elements.json', elements)
         
         # Step 2: Convert to chunks
-        chunks = self.chunker.chunk(elements, file_path)
-        
+        chunks = self.chunker.apply(elements, file_path)
+        write_json('chunked_elements.json', [chunk.to_dict() for chunk in chunks])
+
         return chunks

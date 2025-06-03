@@ -41,7 +41,7 @@ def collect_test_cases():
 
 @pytest.fixture
 def chunker():
-    return DocChunker(chunk_size=1000, chunk_overlap=200)
+    return DocChunker(chunk_size=1000)
 
 @pytest.mark.parametrize("config, docx_file, test_case, global_checks", collect_test_cases())
 def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
