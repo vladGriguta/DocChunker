@@ -29,11 +29,7 @@ uv pip install -r requirements.txt
 from docchunker import DocChunker
 
 # Initialize the chunker with desired settings
-chunker = DocChunker(
-    chunk_size=1000,
-    chunk_overlap=200,
-    preserve_structure=True
-)
+chunker = DocChunker(chunk_size=200)
 
 # Process a document
 chunks = chunker.process_document("complex_document.docx")
