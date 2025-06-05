@@ -6,9 +6,10 @@ test_cases:
   - name: "password_recovery_context"
     search_text: "Password recovery"
     expected_in_chunk:
-      # - "Section 2: Implementation Steps"
-      # - "Development workflow:"
+      - "Section 2: Implementation Steps"
       - "Implement Core Features"
+    expected_metadata:
+      node_type: "list_container"
 
   - name: "frontend_team_hierarchy"
     search_text: "Frontend Team"
@@ -16,8 +17,7 @@ test_cases:
       - "Section 3: Organizational Structure"
       - "Engineering Department"
     expected_metadata:
-      type: "text"
-    xfail: true
+      node_type: "list_container"
 
   - name: "test_case_sequence"
     search_text: "Test case 10:"
@@ -25,14 +25,7 @@ test_cases:
       - "Section 4: Testing Checklist"
       - "Complete testing procedure:"
     expected_metadata:
-      type: "text"
-    xfail: true
-
-  - name: "project_title_heading"
-    search_text: "Nested Lists Test Document"
-    expected_metadata:
-      type: "text"
-    xfail: true
+      node_type: "list_container"
 
 # Global expectations for the document
 global_checks:
