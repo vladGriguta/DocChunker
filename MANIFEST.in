@@ -1,0 +1,12 @@
+# Include the README and LICENSE files
+include README.md
+include LICENSE
+
+# Include data directories
+recursive-include data/unittests *
+recursive-include data/samples *
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store
