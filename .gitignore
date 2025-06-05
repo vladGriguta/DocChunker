@@ -27,6 +27,7 @@ MANIFEST
 # Project-specific
 .env
 .vscode/
+.DS_Store
 
 # Data and cache directories
 data/output/
