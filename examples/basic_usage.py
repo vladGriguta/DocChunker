@@ -28,7 +28,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # Initialize the chunker with custom settings
-    chunker = DocChunker(chunk_size=1000)
+    chunker = DocChunker(chunk_size=200)
     
     print("DocChunker initialized with settings:")
     print(f"  Chunk size: {chunker.chunk_size}")

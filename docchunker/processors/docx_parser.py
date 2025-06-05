@@ -9,7 +9,7 @@ class DocxParser:
     def __init__(self):
         self.current_heading_level = 0
 
-    def parse(self, file_path: str) -> list[dict[str, Any]]:
+    def apply(self, file_path: str) -> list[dict[str, Any]]:
         """Parse DOCX and return a hierarchical list of element dictionaries."""
         doc = docx.Document(file_path)
         flat_elements = []

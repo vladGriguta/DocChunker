@@ -18,7 +18,7 @@ class DocChunker:
     
     def __init__(
         self,
-        chunk_size: int = 1000,
+        chunk_size: int = 200,
     ):
         """
         Initialize the DocChunker with specific settings.

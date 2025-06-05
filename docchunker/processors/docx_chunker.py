@@ -2,6 +2,7 @@ import re
 from typing import Any
 
 from docchunker.models.chunk import Chunk
+from docchunker.utils.text_utils import count_tokens_in_text
 
 
 class DocxChunker:
@@ -10,7 +11,7 @@ class DocxChunker:
     Milestone 1: Recursive consolidation, stringification, basic chunk creation.
     """
     
-    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0): # Added num_overlapping_elements for future use
+    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 1): # Added num_overlapping_elements for future use
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements # Will be used in Milestone 2
 
@@ -111,7 +112,8 @@ class DocxChunker:
                         "document_id": document_id,
                         "source_type": "docx",
                         "node_type": node_type, # Add type of main node
-                        "headings": list(current_headings) # Store context
+                        "headings": list(current_headings), # Store context
+                        "num_tokens": count_tokens_in_text(chunk_text)
                     }
                     chunks.append(Chunk(text=chunk_text, metadata=metadata))
 
