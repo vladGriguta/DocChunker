@@ -2,13 +2,13 @@
 
 A specialized document chunking library designed to handle complex document structures in DOCX and PDF files. DocChunker intelligently processes structured documents containing tables, nested lists, images, and other complex elements to create semantically meaningful chunks that preserve context.
 
-## Features
+## Key Features
 
-- **Structure-aware chunking**: Preserves semantic boundaries and document structure
-- **Complex element handling**: Specialized processing for tables, nested lists, images, etc.
-- **Multi-format support**: Works with DOCX, PDF, and other document formats
-- **Context preservation**: Maintains relationships between document elements
-- **Customizable chunk size**: Adjustable chunk sizes with intelligent overlap
+*   **Advanced DOCX Parsing**: Handles complex elements like nested lists and tables with merged cells.
+*   **Contextual Chunking**: Preserves document hierarchy (headings, etc.) within chunks.
+*   **Configurable Strategy**: Tune chunk size (tokens) and element-based overlap.
+*   **Semantic Cohesion**: Aims to keep related content (list items, table rows) together.
+*   **RAG-Optimized**: Produces chunks ideal for effective information retrieval.
 
 ## Installation
 
@@ -45,6 +45,8 @@ for i, chunk in enumerate(chunks):
 
 ## Development
 
+To contribute to DocChunker:
+
 ```bash
 # Clone the repository
 git clone https://github.com/vladGriguta/DocChunker
@@ -59,6 +61,22 @@ uv pip install -e ".[dev]"
 pytest
 ```
 
+## Future Roadmap
+
+- [ ] **Chunk Size Homogenization**: Implement strategies to reduce chunk size variance.
+- [ ] **Langchain RAG Examples**: Provide integration guides for Langchain.
+- [ ] **Enhanced Unit Testing**: Add more tests for complex tables and lists.
+- [ ] **Retrieval Evaluation Framework**: Develop a framework to assess chunk effectiveness.
+- [ ] **Increased Test Coverage**: Systematically improve overall code coverage.
+- [ ] **PDF Support**: Extend parsing and chunking to PDF documents.
+- [ ] **Advanced Element Handling**: Support for images (captions/alt-text), headers/footers, footnotes.
+- [ ] **Performance Optimizations**: Profile and optimize for very large documents.
+
+
 ## License
 
 MIT
+
+## About the Author
+
+DocChunker is developed by **Vlad Griguta**. Connect with me on [LinkedIn](https://www.linkedin.com/in/vlad-marius-griguta) or [GitHub](https://github.com/vladGriguta).
