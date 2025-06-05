@@ -2,6 +2,7 @@
 Text processing utilities for document chunking.
 """
 
+from functools import lru_cache
 import os
 import re
 
@@ -29,6 +30,7 @@ def extract_keywords(text: str, max_keywords: int = 10) -> list[str]:
     """
     raise NotImplementedError("Keyword extraction is not implemented yet.")
 
+@lru_cache(maxsize=None)
 def count_tokens_in_text(text: str) -> int:
     """
     Count the number of tokens in the text using tiktoken. Assuming the embedding model is 'cl100k_base' from openai.
