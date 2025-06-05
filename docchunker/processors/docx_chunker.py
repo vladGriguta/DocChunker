@@ -73,7 +73,7 @@ class DocxChunker:
         current_chunk_items_text_parts: list[str] = []
 
         # Calculate tokens for the heading prefix once
-        headings_prefix_text = self._create_chunk_text(current_headings, "") # Text of headings only
+        headings_prefix_text = self._create_chunk_text(current_headings, "")
         headings_tokens = count_tokens_in_text(headings_prefix_text)
         current_content_tokens = 0
 
