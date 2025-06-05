@@ -17,7 +17,7 @@ DocChunker requires Python 3.9+ and is best installed using [uv](https://github.
 ```bash
 # Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows, use: .venv\Scripts\activate
+source .venv/bin/activate
 
 # Install with uv
 uv pip install -r requirements.txt
@@ -34,10 +34,12 @@ chunker = DocChunker(chunk_size=200)
 # Process a document
 chunks = chunker.process_document("complex_document.docx")
 
-# Work with chunks
 for i, chunk in enumerate(chunks):
     print(f"Chunk {i}: {chunk.metadata['type']} - {len(chunk.text)} chars")
 ```
+
+## RAG DEMO
+For an end-to-end example of building a simple RAG system using DocChunker with LangChain, check out the examples/RAG_demo.ipynb notebook.
 
 ## Development
 

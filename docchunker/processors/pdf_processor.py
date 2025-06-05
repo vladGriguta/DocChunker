@@ -21,8 +21,9 @@ class PdfProcessor:
     with special handling for complex structures like tables and lists.
     """
 
-    def __init__(self, chunk_size: int = 1000,):
-        pass
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
+        self.chunk_size = chunk_size
+        self.num_overlapping_elements = num_overlapping_elements
 
     def process(self, file_path: str) -> list[Chunk]:
         """Process PDF file and return chunks"""
