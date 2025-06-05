@@ -194,22 +194,40 @@ class DocxParser:
             "level": self.current_heading_level if self.current_heading_level > 0 else 0,
             "content": text
         }
-    
-    def _process_table(self, table) -> dict[str, Any]:
-        """Process a table into an element dictionary with type, content (raw text), and level."""
-        cell_texts = []
-        for row in table.rows:
-            for cell in row.cells:
-                cell_para_texts = [p.text.strip() for p in cell.paragraphs if p.text.strip()]
-                if cell_para_texts:
-                    cell_texts.append(" ".join(cell_para_texts))
-        
-        table_content = "\n---\n".join(cell_texts)
 
+    def _process_table(self, table) -> dict[str, Any]:
+        """
+        Process a table into an element dictionary.
+        The first row is assumed to be the header.
+        Subsequent rows are stored individually.
+        """
+        header_cells: list[str] = []
+        data_rows_content: list[list[str]] = []
+
+        if table.rows:
+            first_row_cells = table.rows[0].cells
+            for cell in first_row_cells:
+                cell_para_texts = [p.text.strip() for p in cell.paragraphs if p.text.strip()]
+                header_cells.append(" ".join(cell_para_texts))
+
+            # Process subsequent rows as data rows
+            for i in range(1, len(table.rows)):
+                row = table.rows[i]
+                current_row_cells_text: list[str] = []
+                for cell in row.cells:
+                    cell_para_texts = [p.text.strip() for p in cell.paragraphs if p.text.strip()]
+                    current_row_cells_text.append(" ".join(cell_para_texts))
+                if any(current_row_cells_text): # Add row only if it has some content
+                    data_rows_content.append(current_row_cells_text)
+
+        # The 'content' field is removed in favor of structured header/rows.
+        # If a single string representation is still needed elsewhere,
+        # it would need to be constructed by the consumer of this structure.
         return {
             "type": "table",
             "level": self.current_heading_level if self.current_heading_level > 0 else 0,
-            "rows": len(table.rows),
-            "cols": len(table.columns),
-            "content": table_content
+            "num_rows": len(table.rows), # Total rows including potential header
+            "num_cols": len(table.columns) if table.columns else 0,
+            "header": header_cells,
+            "data_rows": data_rows_content # List of lists, where each inner list contains cell strings for a data row
         }

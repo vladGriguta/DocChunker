@@ -60,6 +60,83 @@ class DocxChunker:
                 heading_prefix = "\n".join(formatted_headings) + "\n---\n"
         return heading_prefix + content_text
 
+    def _format_table_row(self, header: list[str], row_data: list[str]) -> str:
+        """Formats a single table row with its corresponding header."""
+        if not header or len(header) != len(row_data):
+            # Fallback if header is missing or mismatched: just join row data
+            return " | ".join(row_data)
+        return " | ".join([f"{header[i]}: {cell_data}" for i, cell_data in enumerate(row_data)])
+
+    def _process_table_node(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str):
+        """
+        Processes a table node, splitting it into multiple chunks by rows if necessary,
+        with overlap between chunks. Each chunk includes header context for its rows.
+        """
+        table_header = node.get('header', [])
+        data_rows = node.get('data_rows', [])
+
+        if not data_rows:
+            # If there are no data rows, but there's a header, maybe stringify just the header?
+            # Or, if table is truly empty, stringify the node as a simple table placeholder.
+            # For now, if no data_rows, we can create a simple representation or skip.
+            if table_header:
+                header_text = "Table Header: " + " | ".join(table_header)
+                full_chunk_text = self._create_chunk_text(current_headings, header_text)
+                metadata = {
+                    "document_id": document_id, "source_type": "docx",
+                    "node_type": "table_header_only", "headings": list(current_headings),
+                    "num_tokens": count_tokens_in_text(full_chunk_text)
+                }
+                chunks.append(Chunk(text=full_chunk_text, metadata=metadata))
+            return
+
+        current_chunk_row_data_list: list[list[str]] = []
+        current_chunk_rows_text_parts: list[str] = []
+
+        headings_prefix_text = self._create_chunk_text(current_headings, "")
+        headings_tokens = count_tokens_in_text(headings_prefix_text)
+        current_content_tokens = 0
+
+        for i, row_data in enumerate(data_rows):
+            formatted_row_text = self._format_table_row(table_header, row_data)
+            row_tokens = count_tokens_in_text(formatted_row_text)
+
+            if current_chunk_row_data_list and \
+               (headings_tokens + current_content_tokens + row_tokens + count_tokens_in_text("\n")) > self.chunk_size:
+
+                chunk_content_str = "\n".join(current_chunk_rows_text_parts)
+                final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+                metadata = {
+                    "document_id": document_id, "source_type": "docx",
+                    "node_type": "table_rows", "headings": list(current_headings),
+                    "num_tokens": count_tokens_in_text(final_chunk_text)
+                }
+                chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
+
+                if self.num_overlapping_elements > 0 and len(current_chunk_row_data_list) >= self.num_overlapping_elements:
+                    overlap_row_data = current_chunk_row_data_list[-self.num_overlapping_elements:]
+                else:
+                    overlap_row_data = []
+
+                current_chunk_row_data_list = list(overlap_row_data)
+                current_chunk_rows_text_parts = [self._format_table_row(table_header, r) for r in overlap_row_data]
+                current_content_tokens = count_tokens_in_text("\n".join(current_chunk_rows_text_parts))
+
+            current_chunk_row_data_list.append(row_data)
+            current_chunk_rows_text_parts.append(formatted_row_text)
+            current_content_tokens += row_tokens + (count_tokens_in_text("\n") if len(current_chunk_rows_text_parts) > 1 else 0)
+
+        if current_chunk_row_data_list:
+            chunk_content_str = "\n".join(current_chunk_rows_text_parts)
+            final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+            metadata = {
+                "document_id": document_id, "source_type": "docx",
+                "node_type": "table_rows", "headings": list(current_headings),
+                "num_tokens": count_tokens_in_text(final_chunk_text)
+            }
+            chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
+
+
     def _process_list_container(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str):
         """
         Processes a list_container, splitting it into multiple chunks if necessary,
@@ -72,7 +149,6 @@ class DocxChunker:
         current_chunk_item_nodes: list[dict[str, Any]] = []
         current_chunk_items_text_parts: list[str] = []
 
-        # Calculate tokens for the heading prefix once
         headings_prefix_text = self._create_chunk_text(current_headings, "")
         headings_tokens = count_tokens_in_text(headings_prefix_text)
         current_content_tokens = 0
@@ -80,7 +156,6 @@ class DocxChunker:
         for i, item_node in enumerate(list_items):
             item_text = self._stringify_node_content(item_node, indent_level=0) # Indent relative to list container
             item_tokens = count_tokens_in_text(item_text)
-            
             # Check if adding this item would exceed the chunk size
             # (considering headings + current items + new item)
             if current_chunk_item_nodes and \
@@ -106,7 +181,7 @@ class DocxChunker:
                 current_chunk_item_nodes = list(overlap_nodes)
                 current_chunk_items_text_parts = [self._stringify_node_content(n, 0) for n in overlap_nodes]
                 current_content_tokens = count_tokens_in_text("\n".join(current_chunk_items_text_parts))
-            
+
             # Add current item to the current chunk (or the new chunk after overlap)
             current_chunk_item_nodes.append(item_node)
             current_chunk_items_text_parts.append(item_text)
@@ -132,7 +207,7 @@ class DocxChunker:
             if node_type == 'heading':
                 new_headings = list(current_headings)
                 heading_level = node.get('level', 1)
-                
+
                 while len(new_headings) < heading_level:
                     new_headings.append("") 
                 new_headings[heading_level - 1] = node.get('content', '')
@@ -142,16 +217,16 @@ class DocxChunker:
                     self._consolidate_recursive(node['children'], new_headings, chunks, document_id)
 
             elif node_type == 'list_container':
-                # Delegate to the specialized list container processing method
                 self._process_list_container(node, current_headings, chunks, document_id)
 
-            elif node_type in ['paragraph', 'table']:
+            elif node_type == 'table':
+                self._process_table_node(node, current_headings, chunks, document_id)
+
+            elif node_type == 'paragraph':
                 stringified_content = self._stringify_node_content(node, indent_level=0)
                 if stringified_content.strip():
                     chunk_text = self._create_chunk_text(current_headings, stringified_content)
-                    # For paragraphs and tables (in M2, tables are still one chunk)
-                    # We assume a paragraph fits. Tables are one chunk.
-                    # If a single paragraph/table + headings is too large, it will be oversized.
+                    #TODO: If a single paragraph/table + headings is too large, it will be oversized.
                     metadata = {
                         "document_id": document_id,
                         "source_type": "docx",
@@ -160,7 +235,7 @@ class DocxChunker:
                         "num_tokens": count_tokens_in_text(chunk_text)
                     }
                     chunks.append(Chunk(text=chunk_text, metadata=metadata))
-            
+
 
     def apply(self, elements: list[dict[str, Any]], document_id: str) -> list[Chunk]:
         chunks: list[Chunk] = []
