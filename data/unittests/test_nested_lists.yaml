@@ -1,4 +1,4 @@
-document: "test_nested_lists.docx"
+document: "nested_lists.docx"
 description: "Tests nested list processing and context preservation"
 
 # Test cases: search for specific content and verify expected context
