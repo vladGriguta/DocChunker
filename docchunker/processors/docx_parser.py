@@ -221,7 +221,7 @@ class DocxParser:
                     data_rows_content.append(current_row_cells_text)
 
         # The 'content' field is removed in favor of structured header/rows.
-        # If a single string representation is still needed elsewhere,
+        # If a single string representation is still needed elsewhere, 
         # it would need to be constructed by the consumer of this structure.
         return {
             "type": "table",

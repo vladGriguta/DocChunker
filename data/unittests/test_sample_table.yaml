@@ -9,17 +9,15 @@ test_cases:
       - "Header Row - This cell spans across all four columns and provides a title or summary for the entire table content below."
       - "Merged Vertically"
     expected_metadata:
-      node_type: "table"
-    xfail: true
+      node_type: "table_rows"
 
   - name: "(3,2)"
-    search_text: "cell (3,2)"
+    search_text: "Cell (3,2)"
     expected_in_chunk:
       - "Header Row - This cell spans across all four columns and provides a title or summary for the entire table content below."
       - "Cell (3,0) begins a new row and"
     expected_metadata:
-      node_type: "table"
-    xfail: true
+      node_type: "table_rows"
 
 # Global expectations for the document
 global_checks:

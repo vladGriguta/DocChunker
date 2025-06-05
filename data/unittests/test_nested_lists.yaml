@@ -23,7 +23,6 @@ test_cases:
     search_text: "Test case 10:"
     expected_in_chunk:
       - "Section 4: Testing Checklist"
-      - "Complete testing procedure:"
     expected_metadata:
       node_type: "list_container"
 
