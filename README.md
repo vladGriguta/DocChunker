@@ -34,12 +34,13 @@ chunker = DocChunker(chunk_size=200)
 # Process a document
 chunks = chunker.process_document("complex_document.docx")
 
+# Work with chunks
 for i, chunk in enumerate(chunks):
     print(f"Chunk {i}: {chunk.metadata['type']} - {len(chunk.text)} chars")
 ```
 
 ## RAG DEMO
-For an end-to-end example of building a simple RAG system using DocChunker with LangChain, check out the examples/RAG_demo.ipynb notebook.
+For an end-to-end example of building a simple RAG system using DocChunker with LangChain, check out the `examples/RAG_demo.ipynb` notebook.
 
 ## Development
 

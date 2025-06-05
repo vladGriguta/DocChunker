@@ -4,12 +4,13 @@ Text processing utilities for document chunking.
 
 from functools import lru_cache
 import os
+from pathlib import Path
 import re
 
 import tiktoken
 
 
-def get_file_extension(file_path: str) -> str:
+def get_file_extension(file_path: str | Path) -> str:
     return os.path.splitext(file_path)[1].lower()[1:]
 
 

@@ -43,6 +43,12 @@ def collect_test_cases():
 def chunker():
     return DocChunker(chunk_size=200)
 
+def test_process_documents_returns_chunks(chunker):
+    samples_dir = Path(__file__).parent.parent / "data" / "unittests"
+    chunks = chunker.process_documents(str(samples_dir), "*.docx")
+    assert isinstance(chunks, list), "Output should be of type list."
+    assert len(chunks) > 0, "Expected at least one chunk to be returned from process_documents."
+
 @pytest.mark.parametrize("config, docx_file, test_case, global_checks", collect_test_cases())
 def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
     if test_case and test_case.get("xfail", False):
