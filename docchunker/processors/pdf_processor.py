@@ -2,14 +2,6 @@
 Processor for PDF documents.
 """
 
-import os
-import re
-import uuid
-from typing import Dict, List, Optional, Tuple, Union
-
-import pypdf
-from pypdf import PdfReader
-
 from docchunker.models.chunk import Chunk
 
 
