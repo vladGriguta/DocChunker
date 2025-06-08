@@ -18,6 +18,11 @@ test_cases:
       - "Cell (3,0) begins a new row and"
     expected_metadata:
       node_type: "table_rows"
+  - name: "Example Table with Long context"
+    search_text: "Example Table with Long context"
+    num_chunks: 2
+    expected_metadata:
+      node_type: "table_rows"
 
 # Global expectations for the document
 global_checks:
