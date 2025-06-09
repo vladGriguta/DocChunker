@@ -12,26 +12,37 @@ class DocxParser:
     def __init__(self):
         self.current_heading_level = 0
 
-    def apply(self, file_path: str) -> list[dict[str, Any]]:
-        """Parse DOCX and return a hierarchical list of element dictionaries."""
-        doc = docx.Document(file_path)
+    def _parse_content_elements(self, xml_element_iterator: Any, document_object: docx.document.Document) -> list[dict[str, Any]]:
+        """Parses a sequence of XML elements into a flat list of element dictionaries."""
         flat_elements = []
-        self.current_heading_level = 0
-
-        for element in doc.element.body:
+        for element in xml_element_iterator:
             if isinstance(element, CT_P):
-                para = self._find_paragraph(doc, element)
-                if para and para.text.strip():
+                para = self._find_paragraph(document_object, element)
+                # Ensure paragraph text is not empty after stripping whitespace
+                if para and para.text and para.text.strip():
                     processed_para_element = self._process_paragraph(para)
                     flat_elements.append(processed_para_element)
-            
+                # Optional: handle empty paragraphs if needed, e.g., for spacing or specific structures
+                # else:
+                #     print(f"Skipping empty paragraph: {para.text if para else 'None'}")
+
             elif isinstance(element, CT_Tbl):
-                table = self._find_table(doc, element)
+                table = self._find_table(document_object, element)
                 if table:
                     processed_table_element = self._process_table(table)
                     flat_elements.append(processed_table_element)
             else:
+                # Consider logging or specific handling for unsupported types if they are common
+                # or might contain relevant nested content in future milestones.
                 print(f"Skipping unsupported element type: {type(element)}")
+        return flat_elements
+
+    def apply(self, file_path: str) -> list[dict[str, Any]]:
+        """Parse DOCX and return a hierarchical list of element dictionaries."""
+        doc = docx.Document(file_path)
+        self.current_heading_level = 0 # Reset for each document
+
+        flat_elements = self._parse_content_elements(doc.element.body, doc)
 
         hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
         return hierarchical_elements
