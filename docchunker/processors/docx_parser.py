@@ -1,5 +1,8 @@
 from typing import Any
 import docx
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+import docx.document
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
 
@@ -27,6 +30,8 @@ class DocxParser:
                 if table:
                     processed_table_element = self._process_table(table)
                     flat_elements.append(processed_table_element)
+            else:
+                print(f"Skipping unsupported element type: {type(element)}")
 
         hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
         return hierarchical_elements
@@ -124,24 +129,24 @@ class DocxParser:
 
         return root_nodes
 
-    def _find_paragraph(self, doc, element):
+    def _find_paragraph(self, doc: docx.document.Document, element: CT_P) -> Paragraph:
         """Find paragraph object by XML element"""
         for para in doc.paragraphs:
             if para._element == element:
                 return para
-        return None
-    
-    def _find_table(self, doc, element):
+        raise ValueError("Paragraph not found")
+
+    def _find_table(self, doc: docx.document.Document, element: CT_Tbl) -> Table:
         """Find table object by XML element"""
         for table in doc.tables:
             if table._element == element:
                 return table
-        return None
+        raise ValueError("Table not found")
 
-    def _process_paragraph(self, para) -> dict[str, Any]:
+    def _process_paragraph(self, para: Paragraph) -> dict[str, Any]:
         """Process a paragraph into an element dictionary with type, content, level, and num_id for lists."""
         text = para.text.strip()
-        
+
         # Heading
         if para.style.name.startswith('Heading'):
             level_str = para.style.name.replace('Heading', '').strip() or '1'
@@ -167,7 +172,7 @@ class DocxParser:
                 "content": text,
                 "num_id": num_id
             }
-        
+
         # Fallback: Style-based list detection
         style_name_lower = para.style.name.lower()
         if 'list' in style_name_lower or 'bullet' in style_name_lower or 'number' in style_name_lower:
