@@ -64,7 +64,11 @@ class DocxChunker:
         """Formats a single table row with its corresponding header."""
         if not header or len(header) != len(row_data):
             # Fallback if header is missing or mismatched: just join row data
-            return " | ".join(row_data)
+            try:
+                return " | ".join(row_data)
+            except TypeError:
+                print(0)
+                raise ValueError("Row data must be a list of strings.")
         return " | ".join([f"{header[i]}: {cell_data}" for i, cell_data in enumerate(row_data)])
 
     def _process_table_node(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str):

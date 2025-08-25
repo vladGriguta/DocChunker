@@ -12,11 +12,11 @@ class DocxParser:
     def __init__(self):
         self.current_heading_level = 0
 
-    def _parse_content_elements(self, xml_element_iterator: Any, document_object: docx.document.Document) -> list[dict[str, Any]]:
+    def _parse_content_elements(self, document_object: docx.document.Document) -> list[dict[str, Any]]:
         """Parses a sequence of XML elements and reconstructs them into a hierarchical list."""
         root_nodes: list[dict[str, Any]] = []
         parent_stack: list[dict[str, Any]] = []
-
+        xml_element_iterator = document_object.element.body.iterchildren()
         for element in xml_element_iterator:
             element_data: dict[str, Any] | None = None
             if isinstance(element, CT_P):
@@ -106,7 +106,7 @@ class DocxParser:
         doc = docx.Document(file_path)
         self.current_heading_level = 0 # Reset for each document
 
-        hierarchical_elements = self._parse_content_elements(doc.element.body, doc)
+        hierarchical_elements = self._parse_content_elements(doc)
         return hierarchical_elements
 
     def _find_paragraph(self, doc: docx.document.Document, element: CT_P) -> Paragraph:
