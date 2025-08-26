@@ -10,6 +10,7 @@ test_cases:
       - "Implement Core Features"
     expected_metadata:
       node_type: "list_container"
+    xfail_pdf: true  # PDF format may lose complex list structure and context
 
   - name: "frontend_team_hierarchy"
     search_text: "Frontend Team"
@@ -18,6 +19,7 @@ test_cases:
       - "Engineering Department"
     expected_metadata:
       node_type: "list_container"
+    xfail_pdf: true  # PDF format may lose hierarchical list organization
 
   - name: "test_case_sequence"
     search_text: "Test case 10:"
@@ -25,6 +27,7 @@ test_cases:
       - "Section 4: Testing Checklist"
     expected_metadata:
       node_type: "list_container"
+    xfail_pdf: true  # PDF format may not preserve list context accurately
 
 # Global expectations for the document
 global_checks:

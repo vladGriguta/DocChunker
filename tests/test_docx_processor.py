@@ -52,8 +52,8 @@ def test_process_documents_returns_chunks(chunker):
 
 @pytest.mark.parametrize("config, docx_file, test_case, global_checks", collect_test_cases())
 def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
-    if test_case and test_case.get("xfail", False):
-        pytest.xfail("Marked as expected to fail in YAML")
+    if test_case and (test_case.get("xfail", False) or test_case.get("xfail_docx", False)):
+        pytest.xfail("Marked as expected to fail for DOCX in YAML")
 
     chunks = chunker.process_document(str(docx_file))
     assert len(chunks) > 0, f"No chunks generated for {docx_file}"

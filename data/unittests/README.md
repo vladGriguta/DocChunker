@@ -4,15 +4,26 @@ This directory contains test documents and configurations for validating DocChun
 
 ## Overview
 
-The testing approach uses **document pairs**: each test consists of a `.docx` file and a corresponding `.yaml` configuration file that defines expected chunking behavior.
+The testing approach uses **document triplets**: each test consists of a `.docx` file, a `.pdf` file (converted from the DOCX), and a corresponding `.yaml` configuration file that defines expected chunking behavior for both formats.
+
+### Format-Specific Testing
+
+DocChunker supports both DOCX and PDF processing, but these formats have different capabilities:
+
+- **DOCX**: Rich semantic information (lists, headings, tables with structure)
+- **PDF**: Limited semantic information (text extraction with basic formatting)
+
+The YAML configuration allows format-specific expected failures using `xfail_docx` and `xfail_pdf` flags, letting us track known limitations for each format.
 
 ```
 data/unittests/
 ├── README.md                    # This guide
-├── test_nested_lists.docx       # Test document with complex nested lists
-├── test_nested_lists.yaml       # Test configuration for the above
-├── test_tables.docx             # Future: test document with complex tables
-└── test_tables.yaml             # Future: test configuration for tables
+├── nested_lists.docx            # Test document with complex nested lists
+├── nested_lists.pdf             # PDF version of the above
+├── sample_table.docx            # Test document with tables
+├── sample_table.pdf             # PDF version of the above
+├── test_nested_lists.yaml       # Test configuration for nested lists
+└── test_sample_table.yaml       # Test configuration for table document
 ```
 
 ## Quick Start
@@ -20,11 +31,14 @@ data/unittests/
 ### Running Tests
 
 ```bash
-# Run all YAML-driven tests
-pytest tests/test_yaml_driven.py -v
+# Run all DOCX tests
+pytest tests/test_docx_processor.py -v
 
-# Run manually for debugging
-python tests/test_yaml_driven.py
+# Run all PDF tests
+pytest tests/test_pdf_processor.py -v
+
+# Run both formats
+pytest tests/test_docx_processor.py tests/test_pdf_processor.py -v
 ```
 
 ### Test Results
@@ -63,7 +77,9 @@ global_checks:
 | `search_text` | Yes | Text to search for in chunks | `"Password recovery"` |
 | `expected_in_chunk` | No | List of text that should appear in same chunk | `["Section 2:", "Development workflow:"]` |
 | `expected_metadata` | No | Expected metadata fields | `type: "list", depth: 2` |
-| `xfail` | No | Mark as expected failure during development | `true` |
+| `xfail` | No | Mark as expected failure for all formats | `true` |
+| `xfail_docx` | No | Mark as expected failure for DOCX only | `true` |
+| `xfail_pdf` | No | Mark as expected failure for PDF only | `true` |
 
 ### Global Checks
 
@@ -243,7 +259,17 @@ Sometimes the test expectations need refinement:
 ### 4. Mark as xfail Temporarily
 While developing features, mark tests as expected failures:
 ```yaml
+# For all formats:
 xfail: true  # Remove when feature is implemented
+
+# For specific formats (useful when PDF has limitations):
+xfail_pdf: true    # PDF format has known limitations
+xfail_docx: true   # DOCX processing needs work
+
+# Example: PDF can't detect certain structures but DOCX can
+- name: "complex_table_detection"
+  search_text: "Nested table data"
+  xfail_pdf: true  # PDF format loses table structure
 ```
 
 ## Best Practices

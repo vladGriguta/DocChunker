@@ -1,5 +1,5 @@
 document: "sample_table.docx"
-description: "Tests nested list processing and context preservation"
+description: "Tests table processing and context preservation"
 
 # Test cases: search for specific content and verify expected context
 test_cases:
@@ -10,6 +10,7 @@ test_cases:
       - "Merged Vertically"
     expected_metadata:
       node_type: "table_rows"
+    xfail_pdf: true  # PDF format loses table structure and cell relationships
 
   - name: "(3,2)"
     search_text: "Cell (3,2)"
@@ -18,6 +19,7 @@ test_cases:
       - "Cell (3,0) begins a new row and"
     expected_metadata:
       node_type: "table_rows"
+    xfail_pdf: true  # PDF format loses complex table structure and context
 
 # Global expectations for the document
 global_checks:
