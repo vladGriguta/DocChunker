@@ -21,6 +21,13 @@ test_cases:
       node_type: "table_rows"
     xfail_pdf: true  # PDF format loses complex table structure and context
 
+  - name: "Example Table with Long context"
+    search_text: "Example Table with Long context"
+    num_chunks: 2
+    expected_metadata:
+      node_type: "table_rows"
+    xfail_pdf: true  # PDF format may not preserve table context as expected
+
 # Global expectations for the document
 global_checks:
   min_chunks: 1

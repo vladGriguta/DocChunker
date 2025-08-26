@@ -74,6 +74,11 @@ def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
                 for expected_text in test_case['expected_in_chunk']:
                     assert expected_text in chunk.text, \
                         f"Test '{test_name}': Expected '{expected_text}' in same chunk as '{search_text}'"
+            if 'num_chunks' in test_case:
+                num_chunks = test_case['num_chunks']
+                assert len(matching_chunks) == num_chunks, \
+                    f"Test '{test_name}': Expected {num_chunks} chunks containing '{search_text}', got {len(matching_chunks)}"
+
             if 'expected_metadata' in test_case:
                 for key, expected_value in test_case['expected_metadata'].items():
                     actual_value = chunk.metadata.get(key)
