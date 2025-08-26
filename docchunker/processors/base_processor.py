@@ -1,4 +1,5 @@
 
+from typing import Union, BinaryIO
 from docchunker.models.chunk import Chunk
 
 
@@ -11,6 +12,10 @@ class BaseProcessor:
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
 
-    def process(self, file_path: str) -> list[Chunk]:
-        """Process the document and return chunks."""
+    def process(self, file_input: Union[str, BinaryIO]) -> list[Chunk]:
+        """Process the document and return chunks.
+        
+        Args:
+            file_input: Either a file path (str) or a file-like object (BinaryIO)
+        """
         raise NotImplementedError("Subclasses must implement this method.")

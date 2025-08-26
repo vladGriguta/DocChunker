@@ -1,5 +1,6 @@
 import pytest
 import yaml
+from io import BytesIO
 from pathlib import Path
 from docchunker import DocChunker
 
@@ -78,3 +79,69 @@ def test_yaml_driven(chunker, config, docx_file, test_case, global_checks):
                     actual_value = chunk.metadata.get(key)
                     assert actual_value == expected_value, \
                         f"Test '{test_name}': Expected {key}='{expected_value}', got '{actual_value}'"
+
+def test_process_document_bytes_with_sample_file(chunker):
+    """Test processing DOCX from bytes using a real test file."""
+    # Use one of the existing test files
+    test_file = Path(__file__).parent.parent / "data" / "unittests" / "sample_table.docx"
+    
+    if not test_file.exists():
+        pytest.skip(f"Test file not found: {test_file}")
+    
+    # Read the file as bytes
+    with open(test_file, 'rb') as f:
+        document_bytes = f.read()
+    
+    # Process using the new bytes method
+    chunks_from_bytes = chunker.process_document_bytes(document_bytes, "docx")
+    
+    # Process using the traditional file path method for comparison
+    chunks_from_path = chunker.process_document(str(test_file))
+    
+    # Both methods should return the same number of chunks
+    assert len(chunks_from_bytes) == len(chunks_from_path), \
+        f"Bytes method returned {len(chunks_from_bytes)} chunks, path method returned {len(chunks_from_path)} chunks"
+    
+    # Content should be identical
+    for chunk_bytes, chunk_path in zip(chunks_from_bytes, chunks_from_path):
+        assert chunk_bytes.text == chunk_path.text, \
+            "Chunk text differs between bytes and path processing methods"
+    
+    # Ensure we actually got some chunks
+    assert len(chunks_from_bytes) > 0, "No chunks were generated from bytes processing"
+
+def test_process_document_bytes_with_bytesio_directly(chunker):
+    """Test processing DOCX from BytesIO object directly through processor."""
+    test_file = Path(__file__).parent.parent / "data" / "unittests" / "nested_lists.docx"
+    
+    if not test_file.exists():
+        pytest.skip(f"Test file not found: {test_file}")
+    
+    # Read file as bytes and create BytesIO
+    with open(test_file, 'rb') as f:
+        document_bytes = f.read()
+    
+    file_obj = BytesIO(document_bytes)
+    
+    # Process using the DOCX processor directly
+    docx_processor = chunker.processors["docx"]
+    chunks = docx_processor.process(file_obj)
+    
+    assert isinstance(chunks, list), "Output should be a list of chunks"
+    assert len(chunks) > 0, "Should generate at least one chunk"
+    assert all(hasattr(chunk, 'text') for chunk in chunks), "All chunks should have text attribute"
+
+def test_process_document_bytes_invalid_format():
+    """Test that invalid file formats raise appropriate errors."""
+    chunker = DocChunker()
+    
+    with pytest.raises(ValueError, match="Unsupported file format: invalid"):
+        chunker.process_document_bytes(b"fake content", "invalid")
+
+def test_process_document_bytes_empty_content():
+    """Test processing empty bytes content."""
+    chunker = DocChunker()
+    
+    # This should raise an error since empty bytes won't be a valid DOCX
+    with pytest.raises(Exception):  # python-docx will raise some exception for invalid content
+        chunker.process_document_bytes(b"", "docx")

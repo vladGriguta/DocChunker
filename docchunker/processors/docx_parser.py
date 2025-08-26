@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union, BinaryIO
 import docx
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
@@ -9,9 +9,13 @@ class DocxParser:
     def __init__(self):
         self.current_heading_level = 0
 
-    def apply(self, file_path: str) -> list[dict[str, Any]]:
-        """Parse DOCX and return a hierarchical list of element dictionaries."""
-        doc = docx.Document(file_path)
+    def apply(self, file_input: Union[str, BinaryIO]) -> list[dict[str, Any]]:
+        """Parse DOCX and return a hierarchical list of element dictionaries.
+        
+        Args:
+            file_input: Either a file path (str) or a file-like object (BinaryIO)
+        """
+        doc = docx.Document(file_input)
         flat_elements = []
         self.current_heading_level = 0
 

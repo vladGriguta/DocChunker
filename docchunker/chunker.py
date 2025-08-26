@@ -1,6 +1,8 @@
 import os
 import json
+from io import BytesIO
 from pathlib import Path
+from typing import Union, BinaryIO
 
 from docchunker.models.chunk import Chunk
 from docchunker.processors.docx_processor import DocxProcessor
@@ -26,6 +28,21 @@ class DocChunker:
         }
 
     def process_document(self, file_path: str | Path) -> list[Chunk]:
+        """Process document from file path and return chunks.
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            List of Chunk objects
+            
+        Raises:
+            FileNotFoundError: If the file does not exist
+            ValueError: If the file format is not supported
+            
+        Note:
+            For processing documents from in-memory bytes, use process_document_bytes() instead.
+        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -36,6 +53,29 @@ class DocChunker:
 
         processor = self.processors[extension]
         chunks = processor.process(file_path)
+        return chunks
+
+    def process_document_bytes(self, document_bytes: bytes, file_format: str = "docx") -> list[Chunk]:
+        """Process document from bytes and return chunks.
+        
+        Args:
+            document_bytes: The document content as bytes
+            file_format: The document format (currently only "docx" is supported)
+            
+        Returns:
+            List of Chunk objects
+            
+        Raises:
+            ValueError: If the file format is not supported
+        """
+        if file_format not in self.processors:
+            raise ValueError(f"Unsupported file format: {file_format}")
+
+        # Create BytesIO object from bytes
+        file_obj = BytesIO(document_bytes)
+        
+        processor = self.processors[file_format]
+        chunks = processor.process(file_obj)
         return chunks
 
     def process_documents(self, dir_path: str, regex_pattern: str) -> list[Chunk]:

@@ -1,3 +1,4 @@
+from typing import BinaryIO
 from docchunker.models.chunk import Chunk
 from docchunker.processors.base_processor import BaseProcessor
 from docchunker.processors.docx_chunker import DocxChunker
@@ -12,14 +13,18 @@ class DocxProcessor(BaseProcessor):
         self.parser = DocxParser()
         self.chunker = DocxChunker(chunk_size, num_overlapping_elements=num_overlapping_elements)
 
-    def process(self, file_path: str) -> list[Chunk]:
-        """Process DOCX file and return chunks"""
+    def process(self, file_input: str | BinaryIO) -> list[Chunk]:
+        """Process DOCX file and return chunks.
+        
+        Args:
+            file_input: Either a file path (str) or a file-like object (BinaryIO)
+        """
         # Step 1: Parse to tagged elements
-        elements = self.parser.apply(file_path)
-        write_json('parsed_elements.json', elements)
+        elements = self.parser.apply(file_input)
 
         # Step 2: Convert to chunks
-        chunks = self.chunker.apply(elements, file_path)
-        write_json('chunked_elements.json', [chunk.to_dict() for chunk in chunks])
+        # For file-like objects, use a generic identifier for chunker
+        source_identifier = file_input if isinstance(file_input, str) else "<BytesIO>"
+        chunks = self.chunker.apply(elements, source_identifier)
 
         return chunks
