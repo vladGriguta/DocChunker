@@ -3,7 +3,6 @@ from docchunker.models.chunk import Chunk
 from docchunker.processors.base_processor import BaseProcessor
 from docchunker.processors.docx_chunker import DocxChunker
 from docchunker.processors.docx_parser import DocxParser
-from docchunker.utils.io_utils import write_json
 
 
 class DocxProcessor(BaseProcessor):

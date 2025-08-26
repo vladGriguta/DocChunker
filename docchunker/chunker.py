@@ -2,7 +2,6 @@ import os
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Union, BinaryIO
 
 from docchunker.models.chunk import Chunk
 from docchunker.processors.docx_processor import DocxProcessor

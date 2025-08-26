@@ -2,8 +2,11 @@
 
 A specialized document chunking library designed to handle complex document structures in DOCX and PDF files. DocChunker intelligently processes structured documents containing tables, nested lists, images, and other complex elements to create semantically meaningful chunks that preserve context.
 
+DocChunker supports flexible input methods - process documents from file paths, raw bytes, or file-like objects, making it ideal for web applications, database integration, and cloud-based document processing pipelines.
+
 ## Key Features
 
+*   **In-Memory Processing**: Process documents from bytes, BytesIO objects, or file paths - perfect for web uploads, databases, and cloud storage.
 *   **Advanced DOCX Parsing**: Handles complex elements like nested lists and tables with merged cells.
 *   **Contextual Chunking**: Preserves document hierarchy (headings, etc.) within chunks.
 *   **Configurable Strategy**: Tune chunk size (tokens) and element-based overlap.
@@ -31,12 +34,50 @@ from docchunker import DocChunker
 # Initialize the chunker with desired settings
 chunker = DocChunker(chunk_size=200)
 
-# Process a document
-chunks = chunker.process_document("complex_document.docx")
+# Read document bytes (from file, web request, database, etc.)
+with open("complex_document.docx", "rb") as f:
+    document_bytes = f.read()
+
+# Process the document from bytes
+chunks = chunker.process_document_bytes(document_bytes, file_format="docx")
 
 # Work with chunks
 for i, chunk in enumerate(chunks):
     print(f"Chunk {i}: {chunk.metadata['type']} - {len(chunk.text)} chars")
+```
+
+### Processing from File Path
+
+You can also process documents directly from file paths:
+
+```python
+from docchunker import DocChunker
+
+chunker = DocChunker(chunk_size=200)
+chunks = chunker.process_document("complex_document.docx")
+```
+
+### Common Use Cases
+
+```python
+from docchunker import DocChunker
+from io import BytesIO
+import requests
+
+chunker = DocChunker(chunk_size=200)
+
+# 1. From web upload/API
+response = requests.get("https://example.com/document.docx")
+chunks = chunker.process_document_bytes(response.content, "docx")
+
+# 2. From BytesIO object
+file_obj = BytesIO(document_bytes)
+docx_processor = chunker.processors["docx"]
+chunks = docx_processor.process(file_obj)
+
+# 3. From database BLOB
+# document_bytes = database.get_document_blob(doc_id)
+# chunks = chunker.process_document_bytes(document_bytes, "docx")
 ```
 
 ## RAG DEMO
