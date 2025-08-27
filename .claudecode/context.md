@@ -74,15 +74,7 @@ Documents are parsed into a hierarchical tree where each node has:
 
 ## Current Development Goals
 
-### Priority 1: Enhanced File Input Support
-**Current Issue**: `DocChunker.process_document()` only accepts file paths
-**Goal**: Support in-memory document processing for both DOCX and PDF
-**Impact**: 
-- Enables processing of uploaded files without disk I/O
-- Important for web applications and API integrations
-- Requires extending `process_document_bytes()` method
-
-### Priority 2: Advanced PDF Structure Detection
+### Priority 1: Advanced PDF Structure Detection
 **Current State**: Basic PDF parsing working well, but could be enhanced
 **Goal**: Improve table detection and complex layout handling
 **Approach**:
@@ -91,15 +83,7 @@ Documents are parsed into a hierarchical tree where each node has:
 - Improve figure/image caption detection
 - Add better handling of headers/footers
 
-### Priority 3: Performance Optimizations
-**Current Focus**: Optimize processing speed for large documents
-**Implementation Ideas**:
-- Cache font statistics calculation for PDF processing
-- Optimize token counting with better caching strategies
-- Consider streaming processing for very large documents
-- Profile and optimize paragraph consolidation algorithms
-
-### Priority 4: Format-Specific Enhancements
+### Priority 2: Format-Specific Enhancements
 **Goal**: Leverage the `source_format` parameter for targeted improvements
 **Potential Areas**:
 - DOCX-specific: Better handling of embedded objects and comments
