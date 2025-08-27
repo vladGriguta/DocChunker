@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docchunker"
-version = "0.1.4"
-description = "A specialized document chunking library for complex document structures"
+version = "0.2.0"
+description = "A specialized document chunking library for complex DOCX and PDF document structures"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "python-docx>=0.8.11",
     "tiktoken>=0.9.0",
+    "pypdf>=3.15.1",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +39,6 @@ dev = [
     "isort>=5.12.0",
     "ruff>=0.0.292",
     "pyyaml>=6.0.2",
-    "pypdf>=3.15.1",
     "notebook>=7.4.0",
     "langchain>=0.3.0",
     "langchain-community>=0.3.0",
