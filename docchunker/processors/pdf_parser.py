@@ -121,44 +121,171 @@ class PdfParser:
             # Skip image blocks
             if "lines" not in block:
                 continue
-                
-            for line in block["lines"]:
-                line_text = ""
-                line_fonts = []
-                line_sizes = []
-                line_flags = []
-                
-                for span in line.get("spans", []):
-                    span_text = span.get("text", "")
-                    if span_text.strip():
-                        line_text += span_text
-                        line_fonts.append(span.get("font", ""))
-                        line_sizes.append(span.get("size", 12))
-                        line_flags.append(span.get("flags", 0))
-                
-                if line_text.strip():
-                    # Calculate average font size for this line
-                    avg_size = statistics.mean(line_sizes) if line_sizes else 12
+            
+            # Group lines into paragraphs based on spatial and formatting analysis
+            paragraphs = self._group_lines_into_paragraphs(block["lines"])
+            
+            for paragraph_lines in paragraphs:
+                if not paragraph_lines:
+                    continue
                     
-                    # Determine if line has bold/italic formatting
-                    is_bold = any(flags & 2**4 for flags in line_flags)  # Bold flag
-                    is_italic = any(flags & 2**1 for flags in line_flags)  # Italic flag
+                # Combine all lines in the paragraph
+                paragraph_text = ""
+                all_fonts = []
+                all_sizes = []
+                all_flags = []
+                paragraph_bbox = None
+                
+                for line_data in paragraph_lines:
+                    line_text = line_data['text']
+                    paragraph_text += line_text + " "
+                    all_fonts.extend(line_data['fonts'])
+                    all_sizes.extend(line_data['sizes'])
+                    all_flags.extend(line_data['flags'])
                     
-                    # Get font family (most common in line)
-                    font_family = max(set(line_fonts), key=line_fonts.count) if line_fonts else ""
+                    # Update paragraph bounding box
+                    if paragraph_bbox is None:
+                        paragraph_bbox = line_data['bbox']
+                    else:
+                        # Expand bbox to include this line
+                        paragraph_bbox = [
+                            min(paragraph_bbox[0], line_data['bbox'][0]),  # min x
+                            min(paragraph_bbox[1], line_data['bbox'][1]),  # min y
+                            max(paragraph_bbox[2], line_data['bbox'][2]),  # max x
+                            max(paragraph_bbox[3], line_data['bbox'][3])   # max y
+                        ]
+                
+                if paragraph_text.strip():
+                    # Calculate paragraph-level formatting
+                    avg_size = statistics.mean(all_sizes) if all_sizes else 12
+                    is_bold = any(flags & 2**4 for flags in all_flags)  # Bold flag
+                    is_italic = any(flags & 2**1 for flags in all_flags)  # Italic flag
+                    font_family = max(set(all_fonts), key=all_fonts.count) if all_fonts else ""
                     
                     blocks.append({
-                        'text': line_text.strip(),
+                        'text': paragraph_text.strip(),
                         'font_size': avg_size,
                         'font_family': font_family,
                         'is_bold': is_bold,
                         'is_italic': is_italic,
-                        'x': line.get("bbox", [0])[0],
-                        'y': line.get("bbox", [0, 0])[1],
-                        'bbox': line.get("bbox", [0, 0, 0, 0])
+                        'x': paragraph_bbox[0] if paragraph_bbox else 0,
+                        'y': paragraph_bbox[1] if paragraph_bbox else 0,
+                        'bbox': paragraph_bbox if paragraph_bbox else [0, 0, 0, 0]
                     })
         
         return blocks
+    
+    def _group_lines_into_paragraphs(self, lines: list) -> list[list[dict[str, Any]]]:
+        """Group lines into paragraphs based on spatial relationships and formatting consistency."""
+        if not lines:
+            return []
+        
+        # First, extract line data with formatting information
+        processed_lines = []
+        for line in lines:
+            line_text = ""
+            line_fonts = []
+            line_sizes = []
+            line_flags = []
+            
+            for span in line.get("spans", []):
+                span_text = span.get("text", "")
+                if span_text.strip():
+                    line_text += span_text
+                    line_fonts.append(span.get("font", ""))
+                    line_sizes.append(span.get("size", 12))
+                    line_flags.append(span.get("flags", 0))
+            
+            if line_text.strip():
+                processed_lines.append({
+                    'text': line_text.strip(),
+                    'fonts': line_fonts,
+                    'sizes': line_sizes,
+                    'flags': line_flags,
+                    'bbox': line.get("bbox", [0, 0, 0, 0]),
+                    'avg_size': statistics.mean(line_sizes) if line_sizes else 12,
+                    'is_bold': any(flags & 2**4 for flags in line_flags),
+                    'font_family': max(set(line_fonts), key=line_fonts.count) if line_fonts else ""
+                })
+        
+        if not processed_lines:
+            return []
+        
+        # Group lines into paragraphs
+        paragraphs = []
+        current_paragraph = [processed_lines[0]]
+        
+        for i in range(1, len(processed_lines)):
+            prev_line = processed_lines[i-1]
+            curr_line = processed_lines[i]
+            
+            # Calculate vertical distance between lines
+            prev_bottom = prev_line['bbox'][3]  # y2 of previous line
+            curr_top = curr_line['bbox'][1]     # y1 of current line
+            vertical_gap = abs(curr_top - prev_bottom)
+            
+            # Calculate expected line spacing based on font size
+            avg_font_size = (prev_line['avg_size'] + curr_line['avg_size']) / 2
+            normal_line_spacing = avg_font_size * 0.3  # Typical line spacing is ~30% of font size
+            paragraph_break_threshold = avg_font_size * 0.8  # Larger gaps indicate paragraph breaks
+            
+            # Check for paragraph continuation vs. new paragraph
+            should_continue_paragraph = (
+                # Similar formatting
+                abs(prev_line['avg_size'] - curr_line['avg_size']) < 1 and
+                prev_line['font_family'] == curr_line['font_family'] and
+                prev_line['is_bold'] == curr_line['is_bold'] and
+                
+                # Reasonable vertical spacing (not too far apart)
+                vertical_gap <= paragraph_break_threshold and
+                
+                # Content flow indicators
+                self._lines_likely_connected(prev_line['text'], curr_line['text'])
+            )
+            
+            if should_continue_paragraph:
+                current_paragraph.append(curr_line)
+            else:
+                # Start new paragraph
+                if current_paragraph:
+                    paragraphs.append(current_paragraph)
+                current_paragraph = [curr_line]
+        
+        # Don't forget the last paragraph
+        if current_paragraph:
+            paragraphs.append(current_paragraph)
+        
+        return paragraphs
+    
+    def _lines_likely_connected(self, prev_text: str, curr_text: str) -> bool:
+        """Determine if two lines are likely part of the same paragraph based on content."""
+        prev_text = prev_text.strip()
+        curr_text = curr_text.strip()
+        
+        # Empty lines break paragraphs
+        if not prev_text or not curr_text:
+            return False
+        
+        # Lines ending with sentence punctuation often end paragraphs
+        if prev_text.endswith(('.', '!', '?')):
+            # But check if next line looks like a continuation
+            # (starts with lowercase, doesn't look like a heading)
+            if (curr_text and curr_text[0].islower() and 
+                not curr_text.endswith(':') and
+                len(curr_text) > 20):  # Reasonably long line, not likely a heading
+                return True
+            return False
+        
+        # Lines ending with commas, semicolons, or no punctuation likely continue
+        if prev_text.endswith((',', ';', ':')) or not prev_text[-1] in '.!?':
+            return True
+        
+        # Check if current line starts with lowercase (likely continuation)
+        if curr_text and curr_text[0].islower():
+            return True
+        
+        # Default to continuation if no clear break indicators
+        return True
     
     def _calculate_font_statistics(self, blocks: list[dict[str, Any]]) -> dict[str, Any]:
         """Calculate font statistics for better heading detection."""
