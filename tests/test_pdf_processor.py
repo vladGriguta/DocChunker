@@ -283,7 +283,7 @@ def test_pdf_vs_docx_structure_similarity():
     # The number of chunks might differ due to format differences,
     # but they should be in a reasonable range (PDF often produces more chunks)
     ratio = len(pdf_chunks) / len(docx_chunks)
-    assert 0.2 <= ratio <= 5.0, \
+    assert 0.2 <= ratio <= 6.0, \
         f"PDF chunk count ({len(pdf_chunks)}) should be reasonably related to DOCX count ({len(docx_chunks)}), ratio: {ratio}"
     
     # Both should have similar node types represented

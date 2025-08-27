@@ -126,7 +126,10 @@ def main():
             
             # Save chunks for this configuration
             if chunks:
-                output_file = output_dir / f"{doc_path.stem}_{config_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}_chunks.json"
+                # Include file extension in output name to distinguish between DOCX and PDF
+                file_type = doc_path.suffix.lower().replace('.', '')
+                config_slug = config_name.lower().replace(' ', '_').replace('(', '').replace(')', '')
+                output_file = output_dir / f"{doc_path.stem}_{file_type}_{config_slug}_chunks.json"
                 save_chunks_to_json(chunks, output_file)
                 print(f"Saved to: {output_file.name}")
         

@@ -3,10 +3,20 @@ PDF parser that extracts structured content from PDF documents.
 
 This parser attempts to detect document structure (headings, lists, tables, paragraphs)
 from PDF text and formatting information, returning the same hierarchical format as DocxParser.
+Uses PyMuPDF (fitz) for rich formatting extraction with fallback to PyPDF.
 """
 
-from typing import Any, Union, BinaryIO
+from typing import Any, Union, BinaryIO, Optional
 import re
+import statistics
+
+# Try PyMuPDF first for rich formatting, fallback to PyPDF
+try:
+    import fitz  # PyMuPDF
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+
 from pypdf import PdfReader
 
 
@@ -16,7 +26,8 @@ class PdfParser:
     def __init__(self):
         self.current_heading_level = 0
         # Font size thresholds for heading detection
-        self.heading_font_threshold = 1.2  # Fonts 20% larger than average = headings
+        self.heading_font_threshold = 1.15  # Fonts 15% larger than average = headings
+        self.use_pymupdf = HAS_PYMUPDF
         
     def apply(self, file_input: Union[str, BinaryIO]) -> list[dict[str, Any]]:
         """Parse PDF and return a hierarchical list of element dictionaries.
@@ -24,14 +35,61 @@ class PdfParser:
         Args:
             file_input: Either a file path (str) or a file-like object (BinaryIO)
         """
+        if self.use_pymupdf:
+            return self._apply_with_pymupdf(file_input)
+        else:
+            return self._apply_with_pypdf(file_input)
+    
+    def _apply_with_pymupdf(self, file_input: Union[str, BinaryIO]) -> list[dict[str, Any]]:
+        """Parse PDF using PyMuPDF for rich formatting extraction."""
+        # Open document with PyMuPDF
+        if isinstance(file_input, str):
+            doc = fitz.open(file_input)
+        else:
+            # For BytesIO, read content and open from memory
+            if hasattr(file_input, 'read'):
+                content = file_input.read()
+                if hasattr(file_input, 'seek'):
+                    file_input.seek(0)  # Reset for potential future use
+                doc = fitz.open(stream=content, filetype="pdf")
+            else:
+                raise ValueError("Unsupported file input type for PyMuPDF")
+        
+        flat_elements = []
+        self.current_heading_level = 0
+        
+        # Extract text blocks with rich formatting from all pages
+        all_text_blocks = []
+        for page_num in range(doc.page_count):
+            page = doc[page_num]
+            blocks = self._extract_blocks_with_pymupdf(page)
+            all_text_blocks.extend(blocks)
+        
+        doc.close()
+        
+        # Calculate font statistics for heading detection
+        font_stats = self._calculate_font_statistics(all_text_blocks)
+        
+        # Process blocks into structured elements
+        for block in all_text_blocks:
+            element = self._process_block_with_formatting(block, font_stats)
+            if element:
+                flat_elements.append(element)
+        
+        # Reconstruct hierarchy
+        hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
+        return hierarchical_elements
+    
+    def _apply_with_pypdf(self, file_input: Union[str, BinaryIO]) -> list[dict[str, Any]]:
+        """Parse PDF using PyPDF with enhanced heuristics (fallback method)."""
         reader = PdfReader(file_input)
         flat_elements = []
         self.current_heading_level = 0
         
-        # Extract text with formatting information
+        # Extract text with enhanced heuristics
         all_text_blocks = []
         for page in reader.pages:
-            page_text_blocks = self._extract_text_blocks_with_formatting(page)
+            page_text_blocks = self._extract_text_blocks_enhanced_heuristics(page)
             all_text_blocks.extend(page_text_blocks)
         
         # Calculate average font size for heading detection
@@ -48,41 +106,270 @@ class PdfParser:
             if element:
                 flat_elements.append(element)
         
-        # Reconstruct hierarchy (reuse the logic from DocxParser)
+        # Reconstruct hierarchy
         hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
         return hierarchical_elements
     
-    def _extract_text_blocks_with_formatting(self, page) -> list[dict[str, Any]]:
-        """Extract text blocks with basic formatting information from a PDF page."""
+    def _extract_blocks_with_pymupdf(self, page) -> list[dict[str, Any]]:
+        """Extract text blocks with rich formatting using PyMuPDF."""
+        blocks = []
+        
+        # Get text dictionary with detailed formatting
+        text_dict = page.get_text("dict")
+        
+        for block in text_dict.get("blocks", []):
+            # Skip image blocks
+            if "lines" not in block:
+                continue
+                
+            for line in block["lines"]:
+                line_text = ""
+                line_fonts = []
+                line_sizes = []
+                line_flags = []
+                
+                for span in line.get("spans", []):
+                    span_text = span.get("text", "")
+                    if span_text.strip():
+                        line_text += span_text
+                        line_fonts.append(span.get("font", ""))
+                        line_sizes.append(span.get("size", 12))
+                        line_flags.append(span.get("flags", 0))
+                
+                if line_text.strip():
+                    # Calculate average font size for this line
+                    avg_size = statistics.mean(line_sizes) if line_sizes else 12
+                    
+                    # Determine if line has bold/italic formatting
+                    is_bold = any(flags & 2**4 for flags in line_flags)  # Bold flag
+                    is_italic = any(flags & 2**1 for flags in line_flags)  # Italic flag
+                    
+                    # Get font family (most common in line)
+                    font_family = max(set(line_fonts), key=line_fonts.count) if line_fonts else ""
+                    
+                    blocks.append({
+                        'text': line_text.strip(),
+                        'font_size': avg_size,
+                        'font_family': font_family,
+                        'is_bold': is_bold,
+                        'is_italic': is_italic,
+                        'x': line.get("bbox", [0])[0],
+                        'y': line.get("bbox", [0, 0])[1],
+                        'bbox': line.get("bbox", [0, 0, 0, 0])
+                    })
+        
+        return blocks
+    
+    def _calculate_font_statistics(self, blocks: list[dict[str, Any]]) -> dict[str, Any]:
+        """Calculate font statistics for better heading detection."""
+        font_sizes = [block['font_size'] for block in blocks if block['font_size']]
+        
+        if not font_sizes:
+            return {'avg_size': 12, 'median_size': 12, 'std_size': 0}
+        
+        avg_size = statistics.mean(font_sizes)
+        median_size = statistics.median(font_sizes)
+        
+        if len(font_sizes) > 1:
+            std_size = statistics.stdev(font_sizes)
+        else:
+            std_size = 0
+            
+        return {
+            'avg_size': avg_size,
+            'median_size': median_size,
+            'std_size': std_size,
+            'min_size': min(font_sizes),
+            'max_size': max(font_sizes)
+        }
+    
+    def _process_block_with_formatting(self, block: dict[str, Any], font_stats: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """Process a text block with rich formatting information."""
+        text = block['text'].strip()
+        if not text:
+            return None
+            
+        font_size = block.get('font_size', 12)
+        is_bold = block.get('is_bold', False)
+        is_italic = block.get('is_italic', False)
+        
+        # Enhanced heading detection using multiple signals
+        is_heading = self._is_heading_with_formatting(block, font_stats)
+        
+        if is_heading:
+            heading_level = self._determine_heading_level_advanced(block, font_stats)
+            self.current_heading_level = heading_level
+            return {
+                "type": "heading",
+                "level": heading_level,
+                "content": text
+            }
+        
+        # List item detection with improved heuristics
+        list_match = self._detect_list_item_advanced(text, block)
+        if list_match:
+            return {
+                "type": "list_item",
+                "level": list_match['level'],
+                "content": list_match['content'],
+                "num_id": list_match['num_id']
+            }
+        
+        # Table detection (enhanced)
+        if self._is_table_row_advanced(text, block):
+            # For now, treat as paragraph - TODO: implement proper table grouping
+            pass
+        
+        # Default to paragraph
+        return {
+            "type": "paragraph",
+            "level": self.current_heading_level if self.current_heading_level > 0 else 0,
+            "content": text
+        }
+    
+    def _is_heading_with_formatting(self, block: dict[str, Any], font_stats: dict[str, Any]) -> bool:
+        """Determine if block is a heading using multiple formatting signals."""
+        text = block['text'].strip()
+        font_size = block.get('font_size', 12)
+        is_bold = block.get('is_bold', False)
+        font_family = block.get('font_family', '')
+        
+        avg_size = font_stats['avg_size']
+        
+        # Multiple signals for heading detection
+        signals = {
+            'large_font': font_size > avg_size * self.heading_font_threshold,
+            'bold_text': is_bold,
+            'short_line': len(text) < 100 and not text.endswith('.'),
+            'title_case': text.istitle(),
+            'all_caps': text.isupper() and len(text) < 50,
+            'ends_with_colon': text.endswith(':'),
+            'no_sentence_end': not text.endswith(('.', '!', '?')),
+            'significant_size': font_size > avg_size * 1.1
+        }
+        
+        # Weight the signals
+        score = 0
+        if signals['large_font']: score += 3
+        if signals['bold_text']: score += 2
+        if signals['short_line']: score += 1
+        if signals['title_case']: score += 1
+        if signals['all_caps']: score += 1
+        if signals['ends_with_colon']: score += 1
+        if signals['no_sentence_end']: score += 1
+        if signals['significant_size']: score += 1
+        
+        # Threshold for heading classification
+        return score >= 3
+    
+    def _determine_heading_level_advanced(self, block: dict[str, Any], font_stats: dict[str, Any]) -> int:
+        """Determine heading level using font size and formatting."""
+        font_size = block.get('font_size', 12)
+        is_bold = block.get('is_bold', False)
+        avg_size = font_stats['avg_size']
+        
+        ratio = font_size / avg_size
+        
+        # Adjust level based on formatting
+        if is_bold:
+            ratio *= 1.1  # Bold text gets slight boost
+            
+        if ratio >= 2.0:
+            return 1
+        elif ratio >= 1.6:
+            return 2
+        elif ratio >= 1.4:
+            return 3
+        elif ratio >= 1.2:
+            return 4
+        elif ratio >= 1.1:
+            return 5
+        else:
+            return 6
+    
+    def _detect_list_item_advanced(self, text: str, block: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """Enhanced list item detection using text and positioning."""
+        # Use the existing list detection logic but with position awareness
+        basic_detection = self._detect_list_item(text)
+        
+        if basic_detection:
+            # Enhance with positioning information if available
+            x_pos = block.get('x', 0)
+            
+            # Use x-position to determine indentation level more accurately
+            if x_pos > 0:
+                # Assume every 36 points (0.5 inch) is an indent level
+                position_level = max(0, int(x_pos // 36))
+                # Use the more reliable of the two methods
+                level = max(basic_detection['level'], position_level)
+                basic_detection['level'] = level
+                
+        return basic_detection
+    
+    def _is_table_row_advanced(self, text: str, block: dict[str, Any]) -> bool:
+        """Enhanced table row detection using positioning and content."""
+        # Use existing basic detection
+        basic_table = self._is_table_row(text)
+        
+        # TODO: Add position-based table detection
+        # This could analyze alignment patterns and spacing
+        
+        return basic_table
+    
+    def _extract_text_blocks_enhanced_heuristics(self, page) -> list[dict[str, Any]]:
+        """Extract text blocks with enhanced heuristics (PyPDF fallback method)."""
         text_blocks = []
         
         try:
-            # Try to extract with formatting information
-            if hasattr(page, 'extract_text'):
-                # Basic text extraction - we'll enhance this with font detection
-                full_text = page.extract_text()
+            # Enhanced text extraction for PyPDF
+            full_text = page.extract_text()
+            
+            # Split into paragraphs more intelligently
+            # Look for paragraph breaks (double newlines, section breaks)
+            paragraphs = re.split(r'\n\s*\n|\n(?=\s*[A-Z][^.]*:)|\n(?=\s*\d+\.)', full_text)
+            
+            for paragraph in paragraphs:
+                lines = paragraph.strip().split('\n')
+                current_paragraph = []
                 
-                # Split into paragraphs/blocks based on double newlines
-                blocks = re.split(r'\n\s*\n', full_text)
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        # Group lines that likely belong together
+                        if (current_paragraph and 
+                            not self._looks_like_new_section(line) and
+                            len(line) > 10 and 
+                            not line.endswith(':')):
+                            # Likely continuation of previous line
+                            current_paragraph.append(line)
+                        else:
+                            # Process previous paragraph if any
+                            if current_paragraph:
+                                combined_text = ' '.join(current_paragraph)
+                                font_size = self._estimate_font_size(combined_text)
+                                text_blocks.append({
+                                    'text': combined_text,
+                                    'font_size': font_size,
+                                    'x': 0,
+                                    'y': 0
+                                })
+                            
+                            # Start new paragraph
+                            current_paragraph = [line]
                 
-                for block in blocks:
-                    lines = block.strip().split('\n')
-                    for line in lines:
-                        line = line.strip()
-                        if line:
-                            # Estimate font size based on text characteristics
-                            # This is a heuristic - in practice, you'd want PyMuPDF for real font info
-                            font_size = self._estimate_font_size(line)
-                            
-                            text_blocks.append({
-                                'text': line,
-                                'font_size': font_size,
-                                'x': 0,  # Position info not available with basic PyPDF
-                                'y': 0
-                            })
-                            
+                # Don't forget the last paragraph
+                if current_paragraph:
+                    combined_text = ' '.join(current_paragraph)
+                    font_size = self._estimate_font_size(combined_text)
+                    text_blocks.append({
+                        'text': combined_text,
+                        'font_size': font_size,
+                        'x': 0,
+                        'y': 0
+                    })
+                    
         except Exception:
-            # Fallback to basic text extraction
+            # Ultimate fallback
             text_blocks.append({
                 'text': page.extract_text() or "",
                 'font_size': 12,
@@ -91,6 +378,21 @@ class PdfParser:
             })
             
         return text_blocks
+    
+    def _looks_like_new_section(self, text: str) -> bool:
+        """Determine if a line looks like the start of a new section."""
+        text = text.strip()
+        
+        # Check for common section indicators
+        section_indicators = [
+            text.isupper() and len(text) < 50,  # All caps headings
+            text.endswith(':') and len(text) < 50,  # Headings ending with colon
+            re.match(r'^\d+\.\d*\s', text),  # Numbered sections like "1.1 "
+            re.match(r'^[A-Z]\w*\s+\w+', text) and len(text) < 50,  # Title case short lines
+            text.startswith(('Chapter', 'Section', 'Part', 'Appendix')),  # Explicit sections
+        ]
+        
+        return any(section_indicators)
     
     def _estimate_font_size(self, text: str) -> float:
         """Heuristic to estimate font size based on text characteristics."""
