@@ -8,7 +8,7 @@ from docchunker import DocChunker
 def get_yaml_configs_for_pdf():
     """Discover all YAML configs and their corresponding PDF files."""
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
-    yaml_files = list(test_data_dir.glob("*.yaml"))
+    yaml_files = sorted(test_data_dir.glob("*.yaml"))  # Sort for consistent order across systems
     configs = []
     
     for yaml_file in yaml_files:
