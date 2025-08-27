@@ -14,8 +14,6 @@ class DocxChunker:
     def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
-        if self.num_overlapping_elements > 0:
-            raise NotImplementedError("Overlapping chunks are not yet supported.")
 
     def _stringify_node_content(self, node: dict[str, Any], indent_level: int = 0) -> str:
         """
@@ -110,10 +108,16 @@ class DocxChunker:
 
                 chunk_content_str = "\n".join(current_chunk_rows_text_parts)
                 final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+                
+                # Add overlap metadata - check if this is the first chunk for this specific table
+                table_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "table_rows"])
+                is_first_table_chunk = table_chunks_so_far == 0
                 metadata = {
                     "document_id": document_id, "source_type": "docx",
                     "node_type": "table_rows", "headings": list(current_headings),
-                    "num_tokens": count_tokens_in_text(final_chunk_text)
+                    "num_tokens": count_tokens_in_text(final_chunk_text),
+                    "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
+                    "overlap_elements": 0 if is_first_table_chunk else min(self.num_overlapping_elements, len(current_chunk_row_data_list))
                 }
                 chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
@@ -133,10 +137,16 @@ class DocxChunker:
         if current_chunk_row_data_list:
             chunk_content_str = "\n".join(current_chunk_rows_text_parts)
             final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+            
+            # Add overlap metadata for final chunk
+            table_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "table_rows"])
+            is_first_table_chunk = table_chunks_so_far == 0
             metadata = {
                 "document_id": document_id, "source_type": "docx",
                 "node_type": "table_rows", "headings": list(current_headings),
-                "num_tokens": count_tokens_in_text(final_chunk_text)
+                "num_tokens": count_tokens_in_text(final_chunk_text),
+                "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
+                "overlap_elements": 0 if is_first_table_chunk else min(self.num_overlapping_elements, len(current_chunk_row_data_list))
             }
             chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
@@ -167,12 +177,18 @@ class DocxChunker:
                 # Finalize the current chunk
                 chunk_content_str = "\n".join(current_chunk_items_text_parts)
                 final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+                
+                # Add overlap metadata - check if this is the first chunk for this specific list container
+                list_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "list_container"])
+                is_first_list_chunk = list_chunks_so_far == 0
                 metadata = {
                     "document_id": document_id, 
                     "source_type": "docx",
                     "node_type": "list_container", 
                     "headings": list(current_headings),
-                    "num_tokens": count_tokens_in_text(final_chunk_text)
+                    "num_tokens": count_tokens_in_text(final_chunk_text),
+                    "has_overlap": not is_first_list_chunk and self.num_overlapping_elements > 0,
+                    "overlap_elements": 0 if is_first_list_chunk else min(self.num_overlapping_elements, len(current_chunk_item_nodes))
                 }
                 chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
@@ -195,12 +211,18 @@ class DocxChunker:
         if current_chunk_item_nodes:
             chunk_content_str = "\n".join(current_chunk_items_text_parts)
             final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
+            
+            # Add overlap metadata for final chunk
+            list_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "list_container"])
+            is_first_list_chunk = list_chunks_so_far == 0
             metadata = {
                 "document_id": document_id, 
                 "source_type": "docx",
                 "node_type": "list_container", 
                 "headings": list(current_headings),
-                "num_tokens": count_tokens_in_text(final_chunk_text)
+                "num_tokens": count_tokens_in_text(final_chunk_text),
+                "has_overlap": not is_first_list_chunk and self.num_overlapping_elements > 0,
+                "overlap_elements": 0 if is_first_list_chunk else min(self.num_overlapping_elements, len(current_chunk_item_nodes))
             }
             chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
