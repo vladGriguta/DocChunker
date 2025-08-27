@@ -6,7 +6,7 @@ from typing import BinaryIO
 from docchunker.models.chunk import Chunk
 from docchunker.processors.base_processor import BaseProcessor
 from docchunker.processors.pdf_parser import PdfParser
-from docchunker.processors.docx_chunker import DocxChunker
+from docchunker.processors.document_chunker import DocumentChunker
 
 
 class PdfProcessor(BaseProcessor):
@@ -20,8 +20,8 @@ class PdfProcessor(BaseProcessor):
     def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
         super().__init__(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements)
         self.parser = PdfParser()
-        # Reuse the DocxChunker since it works on the hierarchical structure
-        self.chunker = DocxChunker(chunk_size, num_overlapping_elements=num_overlapping_elements)
+        # Reuse the DocumentChunker since it works on the hierarchical structure
+        self.chunker = DocumentChunker(chunk_size, num_overlapping_elements=num_overlapping_elements)
 
     def process(self, file_input: str | BinaryIO) -> list[Chunk]:
         """Process PDF file and return chunks.
@@ -35,10 +35,6 @@ class PdfProcessor(BaseProcessor):
         # Step 2: Convert to chunks
         # For file-like objects, use a generic identifier for chunker
         source_identifier = file_input if isinstance(file_input, str) else "<BytesIO>"
-        chunks = self.chunker.apply(elements, source_identifier)
-        
-        # Update metadata to reflect PDF source
-        for chunk in chunks:
-            chunk.metadata["source_type"] = "pdf"
+        chunks = self.chunker.apply(elements, source_identifier, source_format="pdf")
 
         return chunks

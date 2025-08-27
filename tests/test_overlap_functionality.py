@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from docchunker import DocChunker
-from docchunker.processors.docx_chunker import DocxChunker
+from docchunker.processors.document_chunker import DocumentChunker
 
 
 def test_overlapping_elements_basic_functionality():
@@ -198,8 +198,8 @@ def test_overlap_with_edge_cases():
             assert overlap_count <= chunk.metadata["num_tokens"] // 5
 
 
-def test_docx_chunker_direct():
-    """Test DocxChunker directly with overlap functionality."""
+def test_document_chunker_direct():
+    """Test DocumentChunker directly with overlap functionality."""
     from docchunker.processors.docx_parser import DocxParser
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
@@ -208,15 +208,15 @@ def test_docx_chunker_direct():
     if not test_file.exists():
         pytest.skip(f"Test file not found: {test_file}")
     
-    # Test DocxChunker directly
+    # Test DocumentChunker directly
     parser = DocxParser()
     elements = parser.apply(str(test_file))
     
-    chunker_no_overlap = DocxChunker(chunk_size=50, num_overlapping_elements=0)
-    chunks_no_overlap = chunker_no_overlap.apply(elements, str(test_file))
+    chunker_no_overlap = DocumentChunker(chunk_size=50, num_overlapping_elements=0)
+    chunks_no_overlap = chunker_no_overlap.apply(elements, str(test_file), "docx")
     
-    chunker_with_overlap = DocxChunker(chunk_size=50, num_overlapping_elements=1)
-    chunks_with_overlap = chunker_with_overlap.apply(elements, str(test_file))
+    chunker_with_overlap = DocumentChunker(chunk_size=50, num_overlapping_elements=1)
+    chunks_with_overlap = chunker_with_overlap.apply(elements, str(test_file), "docx")
     
     # Both should produce valid chunks
     assert len(chunks_no_overlap) > 0

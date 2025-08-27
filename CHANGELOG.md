@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Version**: Bumped to 0.2.0 reflecting significant new functionality
 
 ### Technical Details
-- PDF processing reuses existing `DocxChunker` logic ensuring consistency across formats
+- PDF processing reuses existing `DocumentChunker` logic ensuring consistency across formats
 - Overlap implementation maintains token counting accuracy and chunk size constraints  
 - Source-specific xfail flags allow tracking format-specific capabilities and limitations
 - All existing functionality remains unchanged - no breaking changes
@@ -54,6 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Implementation
 - `DocxParser` for DOCX structure extraction
-- `DocxChunker` for intelligent chunking
+- `DocumentChunker` for intelligent chunking
 - Token-based chunk sizing with tiktoken
 - Hierarchical document structure preservation

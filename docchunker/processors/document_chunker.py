@@ -5,10 +5,13 @@ from docchunker.models.chunk import Chunk
 from docchunker.utils.text_utils import count_tokens_in_text
 
 
-class DocxChunker:
+class DocumentChunker:
     """
     Consolidates hierarchical document elements into context-aware text chunks.
-    Milestone 2: Refined list_container processing with splitting and overlap.
+    
+    This chunker works with hierarchical document structures produced by any parser
+    that outputs the standardized format (DOCX, PDF, etc.). It handles sophisticated
+    chunking with overlap support for lists, tables, and other complex structures.
     """
     
     def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
@@ -69,7 +72,7 @@ class DocxChunker:
                 raise ValueError("Row data must be a list of strings.")
         return " | ".join([f"{header[i]}: {cell_data}" for i, cell_data in enumerate(row_data)])
 
-    def _process_table_node(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str):
+    def _process_table_node(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str = "docx"):
         """
         Processes a table node, splitting it into multiple chunks by rows if necessary,
         with overlap between chunks. Each chunk includes header context for its rows.
@@ -85,7 +88,7 @@ class DocxChunker:
                 header_text = "Table Header: " + " | ".join(table_header)
                 full_chunk_text = self._create_chunk_text(current_headings, header_text)
                 metadata = {
-                    "document_id": document_id, "source_type": "docx",
+                    "document_id": document_id, "source_type": source_format,
                     "node_type": "table_header_only", "headings": list(current_headings),
                     "num_tokens": count_tokens_in_text(full_chunk_text)
                 }
@@ -113,7 +116,7 @@ class DocxChunker:
                 table_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "table_rows"])
                 is_first_table_chunk = table_chunks_so_far == 0
                 metadata = {
-                    "document_id": document_id, "source_type": "docx",
+                    "document_id": document_id, "source_type": source_format,
                     "node_type": "table_rows", "headings": list(current_headings),
                     "num_tokens": count_tokens_in_text(final_chunk_text),
                     "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
@@ -142,7 +145,7 @@ class DocxChunker:
             table_chunks_so_far = len([c for c in chunks if c.metadata.get("node_type") == "table_rows"])
             is_first_table_chunk = table_chunks_so_far == 0
             metadata = {
-                "document_id": document_id, "source_type": "docx",
+                "document_id": document_id, "source_type": source_format,
                 "node_type": "table_rows", "headings": list(current_headings),
                 "num_tokens": count_tokens_in_text(final_chunk_text),
                 "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
@@ -151,7 +154,7 @@ class DocxChunker:
             chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
 
-    def _process_list_container(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str):
+    def _process_list_container(self, node: dict[str, Any], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str = "docx"):
         """
         Processes a list_container, splitting it into multiple chunks if necessary,
         with overlap between chunks.
@@ -183,7 +186,7 @@ class DocxChunker:
                 is_first_list_chunk = list_chunks_so_far == 0
                 metadata = {
                     "document_id": document_id, 
-                    "source_type": "docx",
+                    "source_type": source_format,
                     "node_type": "list_container", 
                     "headings": list(current_headings),
                     "num_tokens": count_tokens_in_text(final_chunk_text),
@@ -217,7 +220,7 @@ class DocxChunker:
             is_first_list_chunk = list_chunks_so_far == 0
             metadata = {
                 "document_id": document_id, 
-                "source_type": "docx",
+                "source_type": source_format,
                 "node_type": "list_container", 
                 "headings": list(current_headings),
                 "num_tokens": count_tokens_in_text(final_chunk_text),
@@ -226,7 +229,7 @@ class DocxChunker:
             }
             chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
-    def _consolidate_recursive(self, nodes: list[dict[str, Any]], current_headings: list[str], chunks: list[Chunk], document_id: str):
+    def _consolidate_recursive(self, nodes: list[dict[str, Any]], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str = "docx"):
         for node in nodes:
             node_type = node.get('type')
 
@@ -240,13 +243,13 @@ class DocxChunker:
                 new_headings = new_headings[:heading_level]
 
                 if 'children' in node and node['children']:
-                    self._consolidate_recursive(node['children'], new_headings, chunks, document_id)
+                    self._consolidate_recursive(node['children'], new_headings, chunks, document_id, source_format)
 
             elif node_type == 'list_container':
-                self._process_list_container(node, current_headings, chunks, document_id)
+                self._process_list_container(node, current_headings, chunks, document_id, source_format)
 
             elif node_type == 'table':
-                self._process_table_node(node, current_headings, chunks, document_id)
+                self._process_table_node(node, current_headings, chunks, document_id, source_format)
 
             elif node_type == 'paragraph':
                 stringified_content = self._stringify_node_content(node, indent_level=0)
@@ -255,7 +258,7 @@ class DocxChunker:
                     #TODO: If a single paragraph/table + headings is too large, it will be oversized.
                     metadata = {
                         "document_id": document_id,
-                        "source_type": "docx",
+                        "source_type": source_format,
                         "node_type": node_type,
                         "headings": list(current_headings),
                         "num_tokens": count_tokens_in_text(chunk_text)
@@ -263,7 +266,15 @@ class DocxChunker:
                     chunks.append(Chunk(text=chunk_text, metadata=metadata))
 
 
-    def apply(self, elements: list[dict[str, Any]], document_id: str) -> list[Chunk]:
+    def apply(self, elements: list[dict[str, Any]], document_id: str, source_format: str = "docx") -> list[Chunk]:
+        """
+        Apply chunking logic to hierarchical document elements.
+        
+        Args:
+            elements: Hierarchical document structure from any parser
+            document_id: Identifier for the source document
+            source_format: Format of the source document (docx, pdf, etc.)
+        """
         chunks: list[Chunk] = []
-        self._consolidate_recursive(elements, [], chunks, document_id)
+        self._consolidate_recursive(elements, [], chunks, document_id, source_format)
         return chunks
