@@ -24,7 +24,7 @@ def demonstrate_bytes_processing():
     print("=== DocChunker In-Memory Processing Demo ===\n")
     
     # Initialize the chunker
-    chunker = DocChunker(chunk_size=200)
+    chunker = DocChunker(chunk_size=1000)
     
     # Path to a sample DOCX file
     sample_file = Path(__file__).parent.parent / "data" / "unittests" / "sample_table.docx"

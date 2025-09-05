@@ -21,7 +21,7 @@ def process_document_with_config(file_path: Path, chunker: DocChunker, config_na
     """Process a document and display statistics."""
     print(f"\n--- Processing with {config_name} ---")
     print(f"Document: {file_path.name}")
-    print(f"Settings: chunk_size={chunker.chunk_size}, overlap={chunker.processors['docx'].chunker.num_overlapping_elements}")
+    print(f"Settings: chunk_size={chunker.chunk_size} chars, overlap={chunker.processors['docx'].chunker.num_overlapping_elements}")
     
     if not file_path.exists():
         print(f"Warning: File not found: {file_path}")
@@ -96,13 +96,13 @@ def main():
         print(f"  {doc}")
     
     # Configuration 1: Standard chunking (no overlap)
-    chunker_standard = DocChunker(chunk_size=150, num_overlapping_elements=0)
+    chunker_standard = DocChunker(chunk_size=750, num_overlapping_elements=0)
     
     # Configuration 2: Small overlap for context
-    chunker_overlap_small = DocChunker(chunk_size=150, num_overlapping_elements=1)
+    chunker_overlap_small = DocChunker(chunk_size=750, num_overlapping_elements=1)
     
     # Configuration 3: Larger overlap for high-context applications
-    chunker_overlap_large = DocChunker(chunk_size=200, num_overlapping_elements=3)
+    chunker_overlap_large = DocChunker(chunk_size=1000, num_overlapping_elements=3)
     
     configurations = [
         (chunker_standard, "Standard (no overlap)"),

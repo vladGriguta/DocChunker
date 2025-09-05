@@ -11,7 +11,7 @@ DocChunker supports flexible input methods - process documents from file paths, 
 *   **Advanced Document Parsing**: Handles complex elements like nested lists, tables with merged cells, headings, and paragraphs.
 *   **Contextual Chunking**: Preserves document hierarchy (headings, etc.) within chunks for better semantic understanding.
 *   **Overlap Control**: Configure element-based overlap between chunks to maintain context continuity.
-*   **Configurable Strategy**: Tune chunk size (tokens) and overlap parameters for optimal performance.
+*   **Configurable Strategy**: Tune chunk size (characters) and overlap parameters for optimal performance.
 *   **Semantic Cohesion**: Aims to keep related content (list items, table rows) together.
 *   **RAG-Optimized**: Produces chunks ideal for effective information retrieval.
 
@@ -31,7 +31,7 @@ DocChunker requires Python 3.9+ and supports both DOCX and PDF processing out of
 from docchunker import DocChunker
 
 # Initialize the chunker with desired settings
-chunker = DocChunker(chunk_size=200)
+chunker = DocChunker(chunk_size=1000)
 
 # Process DOCX from file path
 chunks = chunker.process_document("document.docx")
@@ -57,7 +57,7 @@ from docchunker import DocChunker
 
 # Configure chunk size and overlap for better context preservation
 chunker = DocChunker(
-    chunk_size=300,           # Target tokens per chunk
+    chunk_size=1500,          # Target characters per chunk
     num_overlapping_elements=2 # Elements to overlap between chunks
 )
 
@@ -76,7 +76,7 @@ from docchunker import DocChunker
 from io import BytesIO
 import requests
 
-chunker = DocChunker(chunk_size=200, num_overlapping_elements=1)
+chunker = DocChunker(chunk_size=1000, num_overlapping_elements=1)
 
 # 1. Web uploads/API
 response = requests.get("https://example.com/document.pdf")
@@ -122,7 +122,7 @@ pytest
 
 ### DocChunker Parameters
 
-- **`chunk_size`** (int, default: 200): Target number of tokens per chunk. Chunks may exceed this size to maintain semantic cohesion.
+- **`chunk_size`** (int, default: 1000): Target number of characters per chunk. Chunks may exceed this size to maintain semantic cohesion.
 
 - **`num_overlapping_elements`** (int, default: 0): Number of elements (list items, table rows) to overlap between adjacent chunks. This provides better context continuity for information retrieval:
   - `0`: No overlap - each element appears in only one chunk

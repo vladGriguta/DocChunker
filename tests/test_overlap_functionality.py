@@ -7,8 +7,8 @@ from docchunker.processors.document_chunker import DocumentChunker
 def test_overlapping_elements_basic_functionality():
     """Test that overlapping elements can be initialized without error."""
     # Should not raise NotImplementedError anymore
-    chunker_no_overlap = DocChunker(chunk_size=100, num_overlapping_elements=0)
-    chunker_with_overlap = DocChunker(chunk_size=100, num_overlapping_elements=2)
+    chunker_no_overlap = DocChunker(chunk_size=500, num_overlapping_elements=0)
+    chunker_with_overlap = DocChunker(chunk_size=500, num_overlapping_elements=2)
     
     assert chunker_no_overlap.processors["docx"].chunker.num_overlapping_elements == 0
     assert chunker_with_overlap.processors["docx"].chunker.num_overlapping_elements == 2
@@ -17,7 +17,7 @@ def test_overlapping_elements_basic_functionality():
 def test_overlap_metadata_fields():
     """Test that overlap metadata fields are correctly set."""
     # Use a small chunk size to force splitting
-    chunker = DocChunker(chunk_size=50, num_overlapping_elements=1)
+    chunker = DocChunker(chunk_size=250, num_overlapping_elements=1)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "nested_lists.docx"
@@ -54,11 +54,11 @@ def test_overlap_with_different_sizes():
         pytest.skip(f"Test file not found: {test_file}")
     
     # Test with no overlap
-    chunker_no_overlap = DocChunker(chunk_size=50, num_overlapping_elements=0)
+    chunker_no_overlap = DocChunker(chunk_size=250, num_overlapping_elements=0)
     chunks_no_overlap = chunker_no_overlap.process_document(str(test_file))
     
     # Test with overlap
-    chunker_with_overlap = DocChunker(chunk_size=50, num_overlapping_elements=2)
+    chunker_with_overlap = DocChunker(chunk_size=250, num_overlapping_elements=2)
     chunks_with_overlap = chunker_with_overlap.process_document(str(test_file))
     
     # With overlap, we might have more chunks due to repeated content
@@ -77,7 +77,7 @@ def test_overlap_with_different_sizes():
 
 def test_overlap_prevents_infinite_loops():
     """Test that overlap doesn't cause infinite loops or excessive chunks."""
-    chunker = DocChunker(chunk_size=50, num_overlapping_elements=3)
+    chunker = DocChunker(chunk_size=250, num_overlapping_elements=3)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "nested_lists.docx"
@@ -94,13 +94,13 @@ def test_overlap_prevents_infinite_loops():
     
     # Each chunk should have valid token counts
     for chunk in chunks:
-        assert chunk.metadata["num_tokens"] > 0
+        assert chunk.metadata["num_chars"] > 0
         assert chunk.text.strip(), "Empty chunk text"
 
 
 def test_overlap_token_counting():
     """Test that token counting remains accurate with overlapping content."""
-    chunker = DocChunker(chunk_size=80, num_overlapping_elements=1)
+    chunker = DocChunker(chunk_size=400, num_overlapping_elements=1)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "sample_table.docx"
@@ -113,17 +113,17 @@ def test_overlap_token_counting():
     for chunk in chunks:
         # Token count should be reasonable and match the actual content
         estimated_tokens = len(chunk.text.split())  # Rough estimate
-        actual_tokens = chunk.metadata["num_tokens"]
+        actual_chars = chunk.metadata["num_chars"]
         
-        # Should be in reasonable range (tokens are usually fewer than words)
-        assert 0.5 * estimated_tokens <= actual_tokens <= 2.0 * estimated_tokens, \
-            f"Token count {actual_tokens} seems unreasonable for text length {len(chunk.text)}"
+        # Should be in reasonable range (characters should be close to text length)
+        assert 0.8 * len(chunk.text) <= actual_chars <= 1.2 * len(chunk.text), \
+            f"Character count {actual_chars} seems unreasonable for text length {len(chunk.text)}"
 
 
 def test_table_overlap_functionality():
     """Test overlapping specifically for table chunks."""
     # Use small chunk size to force table splitting
-    chunker = DocChunker(chunk_size=60, num_overlapping_elements=1)
+    chunker = DocChunker(chunk_size=300, num_overlapping_elements=1)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "sample_table.docx"
@@ -149,7 +149,7 @@ def test_table_overlap_functionality():
 def test_list_overlap_functionality():
     """Test overlapping specifically for list chunks."""
     # Use small chunk size to force list splitting
-    chunker = DocChunker(chunk_size=40, num_overlapping_elements=2)
+    chunker = DocChunker(chunk_size=200, num_overlapping_elements=2)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "nested_lists.docx"
@@ -178,7 +178,7 @@ def test_list_overlap_functionality():
 def test_overlap_with_edge_cases():
     """Test overlap functionality with edge cases."""
     # Test with overlap larger than possible elements
-    chunker_big_overlap = DocChunker(chunk_size=200, num_overlapping_elements=100)
+    chunker_big_overlap = DocChunker(chunk_size=1000, num_overlapping_elements=100)
     
     test_data_dir = Path(__file__).parent.parent / "data" / "unittests"
     test_file = test_data_dir / "sample_table.docx"
@@ -194,8 +194,8 @@ def test_overlap_with_edge_cases():
     for chunk in chunks:
         if chunk.metadata.get("has_overlap", False):
             overlap_count = chunk.metadata.get("overlap_elements", 0)
-            # This is a reasonable upper bound - overlap shouldn't be larger than total tokens / 10
-            assert overlap_count <= chunk.metadata["num_tokens"] // 5
+            # This is a reasonable upper bound - overlap shouldn't be larger than total characters / 10
+            assert overlap_count <= chunk.metadata["num_chars"] // 5
 
 
 def test_document_chunker_direct():
@@ -212,10 +212,10 @@ def test_document_chunker_direct():
     parser = DocxParser()
     elements = parser.apply(str(test_file))
     
-    chunker_no_overlap = DocumentChunker(chunk_size=50, num_overlapping_elements=0)
+    chunker_no_overlap = DocumentChunker(chunk_size=250, num_overlapping_elements=0)
     chunks_no_overlap = chunker_no_overlap.apply(elements, str(test_file), "docx")
     
-    chunker_with_overlap = DocumentChunker(chunk_size=50, num_overlapping_elements=1)
+    chunker_with_overlap = DocumentChunker(chunk_size=250, num_overlapping_elements=1)
     chunks_with_overlap = chunker_with_overlap.apply(elements, str(test_file), "docx")
     
     # Both should produce valid chunks
@@ -227,4 +227,4 @@ def test_document_chunker_direct():
         for chunk in chunks:
             assert hasattr(chunk, 'text')
             assert hasattr(chunk, 'metadata')
-            assert chunk.metadata['num_tokens'] > 0
+            assert chunk.metadata['num_chars'] > 0

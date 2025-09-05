@@ -34,7 +34,7 @@ def demonstrate_pdf_processing():
     print(f"Processing: {test_file.name}")
     
     # Standard PDF processing
-    chunker = DocChunker(chunk_size=200)
+    chunker = DocChunker(chunk_size=1000)
     chunks = chunker.process_document(str(test_file))
     
     print(f"\nGenerated {len(chunks)} chunks from PDF")
@@ -75,7 +75,7 @@ def demonstrate_overlap_functionality(test_file: Path):
         print(f"\n--- {description} ---")
         
         chunker = DocChunker(
-            chunk_size=100,  # Smaller chunk size to force splitting
+            chunk_size=500,  # Smaller chunk size to force splitting
             num_overlapping_elements=num_overlap
         )
         
@@ -115,7 +115,7 @@ def demonstrate_input_methods(test_file: Path):
     """Demonstrate different input methods for processing."""
     print(f"\n=== Input Method Demo ===")
     
-    chunker = DocChunker(chunk_size=200, num_overlapping_elements=1)
+    chunker = DocChunker(chunk_size=1000, num_overlapping_elements=1)
     
     # Method 1: File path
     print("1. Processing from file path...")
@@ -169,11 +169,11 @@ def demonstrate_context_preservation():
     print(f"Comparing context preservation using: {test_file.name}")
     
     # No overlap
-    chunker_no_overlap = DocChunker(chunk_size=80, num_overlapping_elements=0) 
+    chunker_no_overlap = DocChunker(chunk_size=400, num_overlapping_elements=0) 
     chunks_no_overlap = chunker_no_overlap.process_document(str(test_file))
     
     # With overlap
-    chunker_with_overlap = DocChunker(chunk_size=80, num_overlapping_elements=2)
+    chunker_with_overlap = DocChunker(chunk_size=400, num_overlapping_elements=2)
     chunks_with_overlap = chunker_with_overlap.process_document(str(test_file))
     
     print(f"\nNo overlap: {len(chunks_no_overlap)} chunks")

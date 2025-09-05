@@ -17,7 +17,7 @@ class PdfProcessor(BaseProcessor):
     with special handling for complex structures like tables and lists.
     """
 
-    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
         super().__init__(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements)
         self.parser = PdfParser()
         # Reuse the DocumentChunker since it works on the hierarchical structure

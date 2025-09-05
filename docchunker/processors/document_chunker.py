@@ -2,7 +2,6 @@ import re
 from typing import Any
 
 from docchunker.models.chunk import Chunk
-from docchunker.utils.text_utils import count_tokens_in_text
 
 
 class DocumentChunker:
@@ -14,7 +13,7 @@ class DocumentChunker:
     chunking with overlap support for lists, tables, and other complex structures.
     """
     
-    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
 
@@ -90,7 +89,7 @@ class DocumentChunker:
                 metadata = {
                     "document_id": document_id, "source_type": source_format,
                     "node_type": "table_header_only", "headings": list(current_headings),
-                    "num_tokens": count_tokens_in_text(full_chunk_text)
+                    "num_chars": len(full_chunk_text)
                 }
                 chunks.append(Chunk(text=full_chunk_text, metadata=metadata))
             return
@@ -99,15 +98,15 @@ class DocumentChunker:
         current_chunk_rows_text_parts: list[str] = []
 
         headings_prefix_text = self._create_chunk_text(current_headings, "")
-        headings_tokens = count_tokens_in_text(headings_prefix_text)
-        current_content_tokens = 0
+        headings_chars = len(headings_prefix_text)
+        current_content_chars = 0
 
         for i, row_data in enumerate(data_rows):
             formatted_row_text = self._format_table_row(table_header, row_data)
-            row_tokens = count_tokens_in_text(formatted_row_text)
+            row_chars = len(formatted_row_text)
 
             if current_chunk_row_data_list and \
-               (headings_tokens + current_content_tokens + row_tokens + count_tokens_in_text("\n")) > self.chunk_size:
+               (headings_chars + current_content_chars + row_chars + len("\n")) > self.chunk_size:
 
                 chunk_content_str = "\n".join(current_chunk_rows_text_parts)
                 final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
@@ -118,7 +117,7 @@ class DocumentChunker:
                 metadata = {
                     "document_id": document_id, "source_type": source_format,
                     "node_type": "table_rows", "headings": list(current_headings),
-                    "num_tokens": count_tokens_in_text(final_chunk_text),
+                    "num_chars": len(final_chunk_text),
                     "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
                     "overlap_elements": 0 if is_first_table_chunk else min(self.num_overlapping_elements, len(current_chunk_row_data_list))
                 }
@@ -131,11 +130,11 @@ class DocumentChunker:
 
                 current_chunk_row_data_list = list(overlap_row_data)
                 current_chunk_rows_text_parts = [self._format_table_row(table_header, r) for r in overlap_row_data]
-                current_content_tokens = count_tokens_in_text("\n".join(current_chunk_rows_text_parts))
+                current_content_chars = len("\n".join(current_chunk_rows_text_parts))
 
             current_chunk_row_data_list.append(row_data)
             current_chunk_rows_text_parts.append(formatted_row_text)
-            current_content_tokens += row_tokens + (count_tokens_in_text("\n") if len(current_chunk_rows_text_parts) > 1 else 0)
+            current_content_chars += row_chars + (len("\n") if len(current_chunk_rows_text_parts) > 1 else 0)
 
         if current_chunk_row_data_list:
             chunk_content_str = "\n".join(current_chunk_rows_text_parts)
@@ -147,7 +146,7 @@ class DocumentChunker:
             metadata = {
                 "document_id": document_id, "source_type": source_format,
                 "node_type": "table_rows", "headings": list(current_headings),
-                "num_tokens": count_tokens_in_text(final_chunk_text),
+                "num_chars": len(final_chunk_text),
                 "has_overlap": not is_first_table_chunk and self.num_overlapping_elements > 0,
                 "overlap_elements": 0 if is_first_table_chunk else min(self.num_overlapping_elements, len(current_chunk_row_data_list))
             }
@@ -167,16 +166,16 @@ class DocumentChunker:
         current_chunk_items_text_parts: list[str] = []
 
         headings_prefix_text = self._create_chunk_text(current_headings, "")
-        headings_tokens = count_tokens_in_text(headings_prefix_text)
-        current_content_tokens = 0
+        headings_chars = len(headings_prefix_text)
+        current_content_chars = 0
 
         for i, item_node in enumerate(list_items):
             item_text = self._stringify_node_content(item_node, indent_level=0) # Indent relative to list container
-            item_tokens = count_tokens_in_text(item_text)
+            item_chars = len(item_text)
             # Check if adding this item would exceed the chunk size
             # (considering headings + current items + new item)
             if current_chunk_item_nodes and \
-               (headings_tokens + current_content_tokens + item_tokens + count_tokens_in_text("\n")) > self.chunk_size:
+               (headings_chars + current_content_chars + item_chars + len("\n")) > self.chunk_size:
                 # Finalize the current chunk
                 chunk_content_str = "\n".join(current_chunk_items_text_parts)
                 final_chunk_text = self._create_chunk_text(current_headings, chunk_content_str)
@@ -189,7 +188,7 @@ class DocumentChunker:
                     "source_type": source_format,
                     "node_type": "list_container", 
                     "headings": list(current_headings),
-                    "num_tokens": count_tokens_in_text(final_chunk_text),
+                    "num_chars": len(final_chunk_text),
                     "has_overlap": not is_first_list_chunk and self.num_overlapping_elements > 0,
                     "overlap_elements": 0 if is_first_list_chunk else min(self.num_overlapping_elements, len(current_chunk_item_nodes))
                 }
@@ -203,12 +202,12 @@ class DocumentChunker:
 
                 current_chunk_item_nodes = list(overlap_nodes)
                 current_chunk_items_text_parts = [self._stringify_node_content(n, 0) for n in overlap_nodes]
-                current_content_tokens = count_tokens_in_text("\n".join(current_chunk_items_text_parts))
+                current_content_chars = len("\n".join(current_chunk_items_text_parts))
 
             # Add current item to the current chunk (or the new chunk after overlap)
             current_chunk_item_nodes.append(item_node)
             current_chunk_items_text_parts.append(item_text)
-            current_content_tokens += item_tokens + (count_tokens_in_text("\n") if len(current_chunk_items_text_parts) > 1 else 0)
+            current_content_chars += item_chars + (len("\n") if len(current_chunk_items_text_parts) > 1 else 0)
 
         # Add the last remaining chunk
         if current_chunk_item_nodes:
@@ -223,7 +222,7 @@ class DocumentChunker:
                 "source_type": source_format,
                 "node_type": "list_container", 
                 "headings": list(current_headings),
-                "num_tokens": count_tokens_in_text(final_chunk_text),
+                "num_chars": len(final_chunk_text),
                 "has_overlap": not is_first_list_chunk and self.num_overlapping_elements > 0,
                 "overlap_elements": 0 if is_first_list_chunk else min(self.num_overlapping_elements, len(current_chunk_item_nodes))
             }
@@ -261,7 +260,7 @@ class DocumentChunker:
                         "source_type": source_format,
                         "node_type": node_type,
                         "headings": list(current_headings),
-                        "num_tokens": count_tokens_in_text(chunk_text)
+                        "num_chars": len(chunk_text)
                     }
                     chunks.append(Chunk(text=chunk_text, metadata=metadata))
 

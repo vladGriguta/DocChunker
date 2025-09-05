@@ -15,9 +15,13 @@ class DocChunker:
     
     This class handles the high-level chunking logic, delegating specific
     format processing to specialized processors.
+    
+    Args:
+        chunk_size (int): Target number of characters per chunk. Default: 200.
+        num_overlapping_elements (int): Number of elements to overlap between chunks. Default: 0.
     """
 
-    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
 

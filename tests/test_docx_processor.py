@@ -42,7 +42,7 @@ def collect_test_cases():
 
 @pytest.fixture
 def chunker():
-    return DocChunker(chunk_size=200)
+    return DocChunker(chunk_size=1000)
 
 def test_process_documents_returns_chunks(chunker):
     samples_dir = Path(__file__).parent.parent / "data" / "unittests"

@@ -52,7 +52,7 @@ def collect_pdf_test_cases():
 
 @pytest.fixture
 def chunker():
-    return DocChunker(chunk_size=200)
+    return DocChunker(chunk_size=1000)
 
 
 def test_pdf_process_documents_returns_chunks(chunker):
@@ -198,7 +198,7 @@ def test_pdf_basic_functionality():
     if not pdf_files:
         pytest.skip("No PDF test files found")
     
-    chunker = DocChunker(chunk_size=200)
+    chunker = DocChunker(chunk_size=1000)
     
     # Test processing first PDF file
     chunks = chunker.process_document(str(pdf_files[0]))
@@ -213,7 +213,7 @@ def test_pdf_basic_functionality():
         assert hasattr(chunk, 'metadata'), "Chunk should have metadata"
         assert 'document_id' in chunk.metadata, "Chunk metadata should have document_id"
         assert 'node_type' in chunk.metadata, "Chunk metadata should have node_type"
-        assert 'num_tokens' in chunk.metadata, "Chunk metadata should have num_tokens"
+        assert 'num_chars' in chunk.metadata, "Chunk metadata should have num_chars"
 
 
 def test_pdf_parser_directly():
@@ -263,7 +263,7 @@ def test_pdf_vs_docx_structure_similarity():
     if not docx_file.exists():
         pytest.skip(f"Corresponding DOCX file not found: {docx_file}")
     
-    chunker = DocChunker(chunk_size=200)
+    chunker = DocChunker(chunk_size=1000)
     
     # Process both files
     docx_chunks = chunker.process_document(str(docx_file))

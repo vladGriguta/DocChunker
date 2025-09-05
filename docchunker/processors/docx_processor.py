@@ -7,7 +7,7 @@ from docchunker.processors.docx_parser import DocxParser
 
 class DocxProcessor(BaseProcessor):
     """Main processor that orchestrates parsing and chunking"""
-    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
         super().__init__(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements)
         self.parser = DocxParser()
         self.chunker = DocumentChunker(chunk_size, num_overlapping_elements=num_overlapping_elements)

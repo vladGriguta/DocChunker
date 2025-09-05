@@ -8,7 +8,7 @@ class BaseProcessor:
     Base class for document processors.
     """
 
-    def __init__(self, chunk_size: int = 200, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
 
