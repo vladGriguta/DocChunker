@@ -6,7 +6,28 @@ including tables, nested lists, and images in formats like DOCX and PDF.
 """
 
 from docchunker.chunker import DocChunker
+from docchunker.evaluation import (
+    Bm25Retriever,
+    EvalDataset,
+    EvalQuery,
+    EvalReport,
+    KeywordRetriever,
+    Retriever,
+    RetrievalEvaluator,
+    compare_configs,
+)
 from docchunker.models.chunk import Chunk
 
 __version__ = "0.1.4"
-__all__ = ["DocChunker", "Chunk"]
+__all__ = [
+    "DocChunker",
+    "Chunk",
+    "Bm25Retriever",
+    "EvalDataset",
+    "EvalQuery",
+    "EvalReport",
+    "KeywordRetriever",
+    "Retriever",
+    "RetrievalEvaluator",
+    "compare_configs",
+]

@@ -97,6 +97,42 @@ for file_path in ["doc1.docx", "doc2.pdf", "doc3.docx"]:
     print(f"Processed {len(chunks)} chunks from {file_path}")
 ```
 
+## Evaluating Retrieval Quality
+
+DocChunker ships a dependency-light evaluation framework to answer: "given this document and these queries, how well do the produced chunks support retrieval?" It includes a from-scratch BM25 retriever (no ML dependencies) and a config comparison helper to pick chunking parameters empirically.
+
+```python
+from docchunker import (
+    DocChunker, EvalDataset, EvalQuery, RetrievalEvaluator, compare_configs,
+)
+
+dataset = EvalDataset(
+    document_path="document.docx",
+    queries=[
+        EvalQuery(query="how does password recovery work",
+                  expected_substring="Password recovery"),
+        EvalQuery(query="which department owns the frontend",
+                  expected_keywords=["Frontend Team", "Engineering"]),
+    ],
+)
+# Datasets can also be loaded from JSON/YAML: EvalDataset.from_file("eval.yaml")
+
+# Evaluate one configuration
+evaluator = RetrievalEvaluator(DocChunker(chunk_size=500))
+report = evaluator.evaluate(dataset, k=5)
+print(report)  # hit_rate@5, MRR, chunk size stats, per-query ranks
+
+# Compare chunking configurations empirically
+comparison = compare_configs(
+    "document.docx", dataset,
+    configs=[{"chunk_size": 300}, {"chunk_size": 1000, "num_overlapping_elements": 1}],
+)
+print(comparison)          # table: chunks, mean size, hit_rate@k, MRR per config
+print(comparison.best())   # top-scoring config
+```
+
+To evaluate with an embedding-based retriever, implement the `Retriever` protocol (`index(chunks)` and `retrieve(query, k)`) and pass it to `RetrievalEvaluator` — DocChunker adds no embedding dependency. See `examples/retrieval_evaluation_demo.py` for a runnable end-to-end example.
+
 ## RAG DEMO
 For an end-to-end example of building a simple RAG system using DocChunker with LangChain, check out the `examples/RAG_demo.ipynb` notebook.
 
@@ -145,7 +181,7 @@ Use `num_overlapping_elements = 0` when:
 
 - [ ] **Chunk Size Homogenization**: Implement strategies to reduce chunk size variance.
 - [ ] **Enhanced Unit Testing**: Add more tests for complex tables and lists.
-- [ ] **Retrieval Evaluation Framework**: Develop a framework to assess chunk effectiveness.
+- [x] **Retrieval Evaluation Framework**: Develop a framework to assess chunk effectiveness.
 - [ ] **Increased Test Coverage**: Systematically improve overall code coverage.
 - [x] **PDF Support**: Full PDF parsing and chunking support with structure detection.
 - [x] **Element Overlap**: Configurable overlap between chunks for better context preservation.
