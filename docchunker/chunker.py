@@ -17,17 +17,21 @@ class DocChunker:
     format processing to specialized processors.
     
     Args:
-        chunk_size (int): Target number of characters per chunk. Default: 200.
+        chunk_size (int): Target number of characters per chunk. Default: 1000.
         num_overlapping_elements (int): Number of elements to overlap between chunks. Default: 0.
+        min_chunk_size (int | None): Minimum target number of characters per paragraph chunk.
+            Consecutive small paragraphs under the same heading context are merged until
+            this size is reached (while staying within chunk_size). Defaults to chunk_size // 4.
     """
 
-    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0, min_chunk_size: int | None = None):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
+        self.min_chunk_size = min_chunk_size
 
         self.processors = {
-            "docx": DocxProcessor(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements),
-            "pdf": PdfProcessor(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements),
+            "docx": DocxProcessor(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements, min_chunk_size=min_chunk_size),
+            "pdf": PdfProcessor(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements, min_chunk_size=min_chunk_size),
         }
 
     def process_document(self, file_path: str | Path) -> list[Chunk]:

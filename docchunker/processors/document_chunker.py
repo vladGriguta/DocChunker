@@ -13,9 +13,15 @@ class DocumentChunker:
     chunking with overlap support for lists, tables, and other complex structures.
     """
     
-    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
+    SENTENCE_BOUNDARY_REGEX = re.compile(r"(?<=[.!?])\s+")
+    PARAGRAPH_SEPARATOR = "\n\n"
+
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0, min_chunk_size: int | None = None):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
+        # Paragraph chunks smaller than this are merged with adjacent paragraphs
+        # sharing the same heading context (while staying within chunk_size).
+        self.min_chunk_size = min_chunk_size if min_chunk_size is not None else max(1, chunk_size // 4)
 
     def _stringify_node_content(self, node: dict[str, Any], indent_level: int = 0) -> str:
         """
@@ -228,9 +234,143 @@ class DocumentChunker:
             }
             chunks.append(Chunk(text=final_chunk_text, metadata=metadata))
 
+    def _split_text_into_sentences(self, text: str) -> list[str]:
+        """Splits text at sentence boundaries using a simple rule-based regex."""
+        sentences = [s for s in self.SENTENCE_BOUNDARY_REGEX.split(text) if s.strip()]
+        return sentences if sentences else [text]
+
+    def _split_oversized_paragraph(self, content: str, available_chars: int) -> list[str]:
+        """
+        Splits paragraph content that exceeds the available space into pieces.
+
+        Splitting happens at sentence boundaries; a hard character split is used
+        only as a fallback when a single sentence alone exceeds the available space.
+        """
+        pieces: list[str] = []
+        current_parts: list[str] = []
+        current_len = 0
+
+        for sentence in self._split_text_into_sentences(content):
+            sentence_len = len(sentence)
+            separator_len = 1 if current_parts else 0  # sentences are re-joined with " "
+
+            if current_parts and current_len + separator_len + sentence_len > available_chars:
+                pieces.append(" ".join(current_parts))
+                current_parts = []
+                current_len = 0
+
+            if sentence_len > available_chars:
+                # Fallback: hard character split for a single overlong sentence.
+                for start in range(0, sentence_len, available_chars):
+                    piece = sentence[start:start + available_chars]
+                    if len(piece) == available_chars:
+                        pieces.append(piece)
+                    else:
+                        current_parts = [piece]
+                        current_len = len(piece)
+            else:
+                current_parts.append(sentence)
+                current_len += separator_len + sentence_len
+
+        if current_parts:
+            pieces.append(" ".join(current_parts))
+        return pieces
+
+    def _emit_paragraph_group(self, paragraph_texts: list[str], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str):
+        """Emits one chunk for a group of one or more merged paragraphs."""
+        if not paragraph_texts:
+            return
+        content = self.PARAGRAPH_SEPARATOR.join(paragraph_texts)
+        chunk_text = self._create_chunk_text(current_headings, content)
+        metadata: dict[str, Any] = {
+            "document_id": document_id,
+            "source_type": source_format,
+            "node_type": "paragraph" if len(paragraph_texts) == 1 else "paragraph_group",
+            "headings": list(current_headings),
+            "num_chars": len(chunk_text),
+        }
+        if len(paragraph_texts) > 1:
+            metadata["num_merged_elements"] = len(paragraph_texts)
+        chunks.append(Chunk(text=chunk_text, metadata=metadata))
+
+    def _emit_split_paragraph(self, content: str, current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str, available_chars: int):
+        """Emits multiple chunks for a single paragraph larger than the chunk size."""
+        pieces = self._split_oversized_paragraph(content, available_chars)
+        split_total = len(pieces)
+        for split_index, piece in enumerate(pieces):
+            chunk_text = self._create_chunk_text(current_headings, piece)
+            metadata = {
+                "document_id": document_id,
+                "source_type": source_format,
+                "node_type": "paragraph",
+                "headings": list(current_headings),
+                "num_chars": len(chunk_text),
+                "is_split": True,
+                "split_index": split_index,
+                "split_total": split_total,
+            }
+            chunks.append(Chunk(text=chunk_text, metadata=metadata))
+
+    def _flush_paragraph_buffer(self, paragraph_buffer: list[str], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str):
+        """
+        Flushes buffered consecutive paragraphs (same heading context) as chunks.
+
+        Homogenization rules:
+        - A paragraph that would exceed chunk_size on its own is split at
+          sentence boundaries into multiple chunks.
+        - Consecutive paragraphs are merged while the current group is smaller
+          than min_chunk_size and the combined chunk stays within chunk_size.
+        """
+        if not paragraph_buffer:
+            return
+
+        headings_chars = len(self._create_chunk_text(current_headings, ""))
+        available_chars = max(self.chunk_size - headings_chars, self.min_chunk_size)
+
+        current_group: list[str] = []
+        current_content_chars = 0
+
+        for paragraph_text in paragraph_buffer:
+            paragraph_chars = len(paragraph_text)
+
+            if paragraph_chars > available_chars:
+                # Oversized paragraph: flush any pending group, then split it.
+                self._emit_paragraph_group(current_group, current_headings, chunks, document_id, source_format)
+                current_group = []
+                current_content_chars = 0
+                self._emit_split_paragraph(paragraph_text, current_headings, chunks, document_id, source_format, available_chars)
+                continue
+
+            separator_chars = len(self.PARAGRAPH_SEPARATOR) if current_group else 0
+            group_is_large_enough = (headings_chars + current_content_chars) >= self.min_chunk_size
+            would_overflow = current_content_chars + separator_chars + paragraph_chars > available_chars
+
+            if current_group and (group_is_large_enough or would_overflow):
+                self._emit_paragraph_group(current_group, current_headings, chunks, document_id, source_format)
+                current_group = []
+                current_content_chars = 0
+                separator_chars = 0
+
+            current_group.append(paragraph_text)
+            current_content_chars += separator_chars + paragraph_chars
+
+        self._emit_paragraph_group(current_group, current_headings, chunks, document_id, source_format)
+        paragraph_buffer.clear()
+
     def _consolidate_recursive(self, nodes: list[dict[str, Any]], current_headings: list[str], chunks: list[Chunk], document_id: str, source_format: str = "docx"):
+        paragraph_buffer: list[str] = []
+
         for node in nodes:
             node_type = node.get('type')
+
+            if node_type == 'paragraph':
+                stringified_content = self._stringify_node_content(node, indent_level=0)
+                if stringified_content.strip():
+                    paragraph_buffer.append(stringified_content)
+                continue
+
+            # Any non-paragraph node breaks the run of consecutive paragraphs.
+            self._flush_paragraph_buffer(paragraph_buffer, current_headings, chunks, document_id, source_format)
 
             if node_type == 'heading':
                 new_headings = list(current_headings)
@@ -250,19 +390,7 @@ class DocumentChunker:
             elif node_type == 'table':
                 self._process_table_node(node, current_headings, chunks, document_id, source_format)
 
-            elif node_type == 'paragraph':
-                stringified_content = self._stringify_node_content(node, indent_level=0)
-                if stringified_content.strip():
-                    chunk_text = self._create_chunk_text(current_headings, stringified_content)
-                    #TODO: If a single paragraph/table + headings is too large, it will be oversized.
-                    metadata = {
-                        "document_id": document_id,
-                        "source_type": source_format,
-                        "node_type": node_type,
-                        "headings": list(current_headings),
-                        "num_chars": len(chunk_text)
-                    }
-                    chunks.append(Chunk(text=chunk_text, metadata=metadata))
+        self._flush_paragraph_buffer(paragraph_buffer, current_headings, chunks, document_id, source_format)
 
 
     def apply(self, elements: list[dict[str, Any]], document_id: str, source_format: str = "docx") -> list[Chunk]:
