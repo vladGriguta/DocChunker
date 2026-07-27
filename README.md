@@ -160,6 +160,8 @@ pytest
 
 - **`chunk_size`** (int, default: 1000): Target number of characters per chunk. Chunks may exceed this size to maintain semantic cohesion.
 
+- **`min_chunk_size`** (int, default: `chunk_size // 4`): Minimum target number of characters per paragraph chunk. Consecutive small paragraphs under the same heading context are merged into a single chunk (metadata `node_type: "paragraph_group"`) until this size is reached, while the combined chunk stays within `chunk_size`. Single paragraphs larger than `chunk_size` are split at sentence boundaries into multiple chunks (metadata `is_split`, `split_index`, `split_total`). Set to `1` to effectively disable paragraph merging. Only affects paragraph chunks; table and list chunking are unchanged.
+
 - **`num_overlapping_elements`** (int, default: 0): Number of elements (list items, table rows) to overlap between adjacent chunks. This provides better context continuity for information retrieval:
   - `0`: No overlap - each element appears in only one chunk
   - `1-3`: Recommended for most use cases - provides context while minimizing duplication  
@@ -179,7 +181,7 @@ Use `num_overlapping_elements = 0` when:
 
 ## Future Roadmap
 
-- [ ] **Chunk Size Homogenization**: Implement strategies to reduce chunk size variance.
+- [x] **Chunk Size Homogenization**: Implement strategies to reduce chunk size variance.
 - [ ] **Enhanced Unit Testing**: Add more tests for complex tables and lists.
 - [x] **Retrieval Evaluation Framework**: Develop a framework to assess chunk effectiveness.
 - [ ] **Increased Test Coverage**: Systematically improve overall code coverage.

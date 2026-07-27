@@ -17,11 +17,11 @@ class PdfProcessor(BaseProcessor):
     with special handling for complex structures like tables and lists.
     """
 
-    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
-        super().__init__(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements)
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0, min_chunk_size: int | None = None):
+        super().__init__(chunk_size=chunk_size, num_overlapping_elements=num_overlapping_elements, min_chunk_size=min_chunk_size)
         self.parser = PdfParser()
         # Reuse the DocumentChunker since it works on the hierarchical structure
-        self.chunker = DocumentChunker(chunk_size, num_overlapping_elements=num_overlapping_elements)
+        self.chunker = DocumentChunker(chunk_size, num_overlapping_elements=num_overlapping_elements, min_chunk_size=min_chunk_size)
 
     def process(self, file_input: str | BinaryIO) -> list[Chunk]:
         """Process PDF file and return chunks.

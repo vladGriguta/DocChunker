@@ -8,9 +8,10 @@ class BaseProcessor:
     Base class for document processors.
     """
 
-    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0):
+    def __init__(self, chunk_size: int = 1000, num_overlapping_elements: int = 0, min_chunk_size: int | None = None):
         self.chunk_size = chunk_size
         self.num_overlapping_elements = num_overlapping_elements
+        self.min_chunk_size = min_chunk_size
 
     def process(self, file_input: Union[str, BinaryIO]) -> list[Chunk]:
         """Process the document and return chunks.
