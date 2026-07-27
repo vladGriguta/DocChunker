@@ -1,0 +1,75 @@
+document: "complex_tables.docx"
+description: "Tests table edge cases: merged cells, wide tables, header-only tables and multi-chunk table splitting"
+# Generated fixture: regenerate with `python data/unittests/generate_fixtures.py`.
+# No PDF counterpart is generated (no offline DOCX->PDF converter available),
+# so the PDF test runner skips this config automatically.
+
+test_cases:
+  - name: "vertically_merged_cell_repeats_in_both_rows"
+    search_text: "Revenue was 1350 units"
+    expected_in_chunk:
+      - "Merged Cells Table"
+      - "EMEA shared region"
+      - "Revenue was 1200 units"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "horizontally_merged_summary_row"
+    search_text: "Full year summary spanning all quarter columns"
+    expected_in_chunk:
+      - "Merged Cells Table"
+      - "APAC region"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "wide_table_keeps_all_columns_in_row"
+    search_text: "wide-r2-c12"
+    expected_in_chunk:
+      - "Wide Table"
+      - "Metric01: wide-r2-c01"
+      - "Metric06: wide-r2-c06"
+      - "Metric12: wide-r2-c12"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "header_only_table_emits_header_chunk"
+    search_text: "Escalation Contact"
+    expected_in_chunk:
+      - "Header Only Table"
+      - "Table Header:"
+      - "Status Code"
+      - "Status Meaning"
+    expected_metadata:
+      node_type: "table_header_only"
+
+  - name: "large_table_first_row_has_heading_and_header_context"
+    search_text: "Gadget model 01"
+    expected_in_chunk:
+      - "Large Product Catalog"
+      - "Product Name:"
+      - "Price:"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "large_table_middle_row_repeats_headers"
+    search_text: "Gadget model 17"
+    expected_in_chunk:
+      - "Large Product Catalog"
+      - "Product Name:"
+      - "Description:"
+      - "Price:"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "large_table_last_row_repeats_headers"
+    search_text: "Gadget model 30"
+    expected_in_chunk:
+      - "Large Product Catalog"
+      - "Product Name:"
+      - "Price:"
+    expected_metadata:
+      node_type: "table_rows"
+
+global_checks:
+  min_chunks: 8
+  max_empty_chunks: 0

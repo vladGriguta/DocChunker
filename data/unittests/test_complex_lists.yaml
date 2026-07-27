@@ -1,0 +1,81 @@
+document: "complex_lists.docx"
+description: "Tests list edge cases: deep nesting, mixed list types, interrupted lists and lists following tables"
+# Generated fixture: regenerate with `python data/unittests/generate_fixtures.py`.
+# No PDF counterpart is generated (no offline DOCX->PDF converter available),
+# so the PDF test runner skips this config automatically.
+
+test_cases:
+  - name: "five_level_deep_item_keeps_ancestors"
+    search_text: "Whitelist monitoring agents level five"
+    expected_in_chunk:
+      - "Deep Nesting"
+      - "Deploy platform level one"
+      - "Provision infrastructure level two"
+      - "Configure network level three"
+      - "Open firewall ports level four"
+    expected_metadata:
+      node_type: "list_container"
+
+  - name: "deep_nesting_siblings_stay_together"
+    search_text: "Configure storage level three sibling"
+    expected_in_chunk:
+      - "Deep Nesting"
+      - "Verify deployment level one sibling"
+    expected_metadata:
+      node_type: "list_container"
+
+  - name: "numbered_list_with_substeps"
+    search_text: "Numbered substep alpha-two: draft specification"
+    expected_in_chunk:
+      - "Mixed List Types"
+      - "Numbered step alpha: collect requirements"
+      - "Numbered substep alpha-one: interview users"
+    expected_metadata:
+      node_type: "list_container"
+
+  - name: "style_based_bullet_fallback_detection"
+    search_text: "Bullet term latency"
+    expected_in_chunk:
+      - "Mixed List Types"
+      - "Bullet term throughput"
+    expected_metadata:
+      node_type: "list_container"
+
+  - name: "interrupted_list_first_part_keeps_heading"
+    search_text: "Interrupted item two: remove the side panel"
+    expected_in_chunk:
+      - "Interrupted List"
+      - "Interrupted item one"
+
+  - name: "interrupting_paragraph_keeps_heading"
+    search_text: "Warning interlude"
+    expected_in_chunk:
+      - "Interrupted List"
+
+  - name: "interrupted_list_resumes_after_paragraph"
+    search_text: "Interrupted item three: replace the filter"
+    expected_in_chunk:
+      - "Interrupted List"
+      - "Interrupted item four"
+
+  - name: "table_directly_before_list"
+    search_text: "Flour for the base"
+    expected_in_chunk:
+      - "List After Table"
+      - "Ingredient:"
+      - "Amount:"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "list_directly_after_table"
+    search_text: "After-table step two: rest the dough"
+    expected_in_chunk:
+      - "List After Table"
+      - "After-table step one"
+      - "After-table step three"
+    expected_metadata:
+      node_type: "list_container"
+
+global_checks:
+  min_chunks: 6
+  max_empty_chunks: 0
