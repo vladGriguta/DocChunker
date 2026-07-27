@@ -13,6 +13,7 @@ DocChunker supports flexible input methods - process documents from file paths, 
 *   **Overlap Control**: Configure element-based overlap between chunks to maintain context continuity.
 *   **Configurable Strategy**: Tune chunk size (characters) and overlap parameters for optimal performance.
 *   **Semantic Cohesion**: Aims to keep related content (list items, table rows) together.
+*   **Heading Inference for Unstyled Documents**: DOCX files that use no Word heading styles still get heading context in every chunk — short paragraphs that are dominantly bold, use a larger font, carry a numbering prefix ("2.3.1 Title") or are ALL-CAPS are conservatively detected as headings. Styled documents are never affected: whenever a `Heading N` style is present, inference is disabled entirely.
 *   **RAG-Optimized**: Produces chunks ideal for effective information retrieval.
 
 ## Installation

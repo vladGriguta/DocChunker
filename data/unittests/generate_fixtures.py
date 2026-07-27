@@ -7,6 +7,7 @@ Run from the repository root:
 Regenerates:
     data/unittests/complex_tables.docx
     data/unittests/complex_lists.docx
+    data/unittests/unstyled_headings.docx
 
 The generated files are committed to the repository so tests do not depend on
 this script at runtime, but the script is kept so fixtures stay reproducible.
@@ -21,6 +22,7 @@ from pathlib import Path
 from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Pt
 
 OUTPUT_DIR = Path(__file__).parent
 
@@ -187,9 +189,123 @@ def build_complex_lists(path: Path) -> None:
     doc.save(str(path))
 
 
+def add_formatted_paragraph(
+    doc: Document, text: str, bold: bool = False, size_pt: float | None = None
+):
+    """Add a plain (non-styled) paragraph with optional run-level formatting.
+
+    Used to fake headings the way real-world authors do: bold runs, larger
+    fonts and manual numbering instead of Word heading styles.
+    """
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run(text)
+    if bold:
+        run.bold = True
+    if size_pt is not None:
+        run.font.size = Pt(size_pt)
+    return paragraph
+
+
+def build_unstyled_headings(path: Path) -> None:
+    """Document with NO heading styles: headings are faked via formatting.
+
+    Exercises all three heading-inference signal types across three levels:
+    - bold + larger font + numbering  -> level 1 ("1. Introduction")
+    - bold + numbering depth 2/3      -> levels 2/3 ("1.1 Purpose", "2.2.1 ...")
+    - bold only (body size)           -> one level below the size tiers
+    - ALL-CAPS only                   -> one level below the size tiers
+    Plus negative cases: short plain paragraphs and inline bold emphasis
+    inside a long paragraph must NOT become headings.
+    """
+    doc = Document()
+
+    # Lead body paragraph before any heading (ends with '.').
+    doc.add_paragraph(
+        "Atlas is an internal telemetry platform. This overview document "
+        "describes its architecture and operating procedures for new engineers."
+    )
+
+    # --- Section 1: bold + 16pt + numbering -> level 1 ----------------------
+    add_formatted_paragraph(doc, "1. Introduction", bold=True, size_pt=16)
+    doc.add_paragraph(
+        "The introduction section explains why Atlas exists and who should "
+        "read this guide before touching production systems."
+    )
+
+    add_formatted_paragraph(doc, "1.1 Purpose", bold=True)
+    doc.add_paragraph(
+        "Atlas collects telemetry from edge devices and stores it for later "
+        "analysis by the data science team."
+    )
+    # Negative case: short plain paragraph, no emphasis -> must stay body text.
+    doc.add_paragraph("Refer to the glossary for terminology")
+    doc.add_paragraph(
+        "Feedback on this specification should go to the platform working group."
+    )
+
+    add_formatted_paragraph(doc, "1.2 Scope", bold=True)
+    # Negative case: bold inline emphasis inside a long paragraph.
+    scope = doc.add_paragraph(
+        "The scope of this specification covers ingestion, storage and reporting. "
+    )
+    emphasis = scope.add_run("Real-time alerting")
+    emphasis.bold = True
+    scope.add_run(
+        " is explicitly out of scope for the first release and will follow in "
+        "a later revision of this document."
+    )
+
+    # --- Section 2: nested numbering + a list and a table -------------------
+    add_formatted_paragraph(doc, "2. System Architecture", bold=True, size_pt=16)
+    doc.add_paragraph(
+        "The platform is composed of loosely coupled services communicating "
+        "over a shared message bus."
+    )
+
+    add_formatted_paragraph(doc, "2.1 Components", bold=True)
+    doc.add_paragraph("The services below make up the core of the platform.")
+    add_list_item(doc, "Collector service accepts device payloads", ilvl=0, num_id=500)
+    add_list_item(doc, "Registry service tracks device identity", ilvl=0, num_id=500)
+    add_list_item(doc, "Reporting service renders dashboards", ilvl=0, num_id=500)
+
+    add_formatted_paragraph(doc, "2.2 Data Flow", bold=True)
+    doc.add_paragraph(
+        "Telemetry moves through the system in three stages described below."
+    )
+
+    add_formatted_paragraph(doc, "2.2.1 Ingestion Pipeline", bold=True)
+    doc.add_paragraph(
+        "During ingestion the collector validates each payload and appends it "
+        "to the durable event log for downstream consumers."
+    )
+
+    # --- Bold-only heading (no numbering, body font size) -------------------
+    add_formatted_paragraph(doc, "Deployment Checklist", bold=True)
+    doc.add_paragraph("Every release must pass the checklist before rollout.")
+    table = doc.add_table(rows=3, cols=2)
+    fill_table(
+        table,
+        header=["Environment", "Approver"],
+        rows=[
+            ["Staging cluster", "Platform lead"],
+            ["Production cluster", "Release manager"],
+        ],
+    )
+
+    # --- ALL-CAPS heading (no bold, body font size) -------------------------
+    add_formatted_paragraph(doc, "APPENDIX A GLOSSARY")
+    doc.add_paragraph(
+        "Telemetry means measurements emitted by devices without operator "
+        "interaction."
+    )
+
+    doc.save(str(path))
+
+
 def main() -> None:
     build_complex_tables(OUTPUT_DIR / "complex_tables.docx")
     build_complex_lists(OUTPUT_DIR / "complex_lists.docx")
+    build_unstyled_headings(OUTPUT_DIR / "unstyled_headings.docx")
     print(f"Fixtures written to {OUTPUT_DIR}")
 
 
