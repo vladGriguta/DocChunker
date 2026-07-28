@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-29
+
+### Added
+- **Rule-based heading inference for unstyled DOCX documents** (#9): documents
+  written without Word heading styles now get a heading hierarchy inferred from
+  formatting (bold, size, casing), so chunking preserves structure.
+- **Improved rule-based PDF structure inference** (#10): geometric table
+  detection via PyMuPDF keeps tables in reading order and out of the paragraph
+  flow, document-wide font statistics normalize heading levels, and indentation
+  tiers recover nested lists. Previously-xfailed PDF list/table structure tests
+  now pass.
+
+### Fixed
+- Removed a leftover debug print in table row formatting (#8).
+
 ## [0.2.0] - 2024-08-27
 
 ### Added
