@@ -19,6 +19,14 @@ except ImportError:
 
 from pypdf import PdfReader
 
+# Whitespace-like characters PDF exporters insert around list markers
+# (regular whitespace plus zero-width/non-breaking characters such as U+200B).
+_MARKER_WS = "\\s\u200b\u200e\u200f\u00a0\ufeff"
+# A line starting with one of these characters is a bullet list item.
+_BULLET_CHARS = "\u2022\u25cf\u25cb\u25aa\u25ab\u25e6\u2023\u25b8\u25b6\u25ba\u2043*\u2013\\-"
+BULLET_ITEM_RE = re.compile(rf"^[{_MARKER_WS}]*[{_BULLET_CHARS}][{_MARKER_WS}]+(\S.*)$")
+NUMBERED_ITEM_RE = re.compile(rf"^[{_MARKER_WS}]*\d{{1,3}}[.)][{_MARKER_WS}]+(\S.*)$")
+
 
 class PdfParser:
     """Parses PDF documents to a hierarchical structure of elements."""
@@ -55,30 +63,114 @@ class PdfParser:
             else:
                 raise ValueError("Unsupported file input type for PyMuPDF")
         
-        flat_elements = []
         self.current_heading_level = 0
-        
-        # Extract text blocks with rich formatting from all pages
-        all_text_blocks = []
+
+        # Collect tables (via PyMuPDF's geometric table detection) and text
+        # blocks per page, keeping everything in reading order. Text lines that
+        # fall inside a detected table region are excluded from the normal
+        # paragraph/heading flow.
+        ordered_items = []
         for page_num in range(doc.page_count):
             page = doc[page_num]
-            blocks = self._extract_blocks_with_pymupdf(page)
-            all_text_blocks.extend(blocks)
-        
+            tables = self._extract_tables(page)
+            table_bboxes = [t['bbox'] for t in tables]
+            page_items = [{'y': b['y'], 'block': b}
+                          for b in self._extract_blocks_with_pymupdf(page, table_bboxes)]
+            page_items += [{'y': t['bbox'][1], 'table': t} for t in tables]
+            page_items.sort(key=lambda item: item['y'])
+            ordered_items.extend(page_items)
+
         doc.close()
-        
-        # Calculate font statistics for heading detection
+
+        # Document-wide statistics: font sizes (for heading detection and
+        # per-document heading level normalization) and list indentation tiers.
+        all_text_blocks = [item['block'] for item in ordered_items if 'block' in item]
         font_stats = self._calculate_font_statistics(all_text_blocks)
-        
-        # Process blocks into structured elements
-        for block in all_text_blocks:
-            element = self._process_block_with_formatting(block, font_stats)
+        font_stats['heading_levels'] = self._compute_heading_levels(all_text_blocks, font_stats)
+        indent_tiers = self._compute_indent_tiers(all_text_blocks)
+
+        # Process items into structured elements
+        flat_elements = []
+        for item in ordered_items:
+            if 'table' in item:
+                t = item['table']
+                flat_elements.append({
+                    'type': 'table',
+                    'level': self.current_heading_level if self.current_heading_level > 0 else 0,
+                    'num_rows': t['num_rows'],
+                    'num_cols': t['num_cols'],
+                    'header': t['header'],
+                    'data_rows': t['data_rows'],
+                })
+                continue
+            element = self._process_block_with_formatting(item['block'], font_stats, indent_tiers)
             if element:
                 flat_elements.append(element)
-        
+
         # Reconstruct hierarchy
         hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
         return hierarchical_elements
+
+    def _extract_tables(self, page) -> list[dict[str, Any]]:
+        """Detect tables on a page using PyMuPDF's geometric table finder.
+
+        Returns one dict per table with its bbox, header (first row) and data
+        rows. Cells covered by a merge come back as ``None`` from PyMuPDF and
+        are forward-filled: vertically merged cells copy the value from the row
+        above, horizontally merged cells copy from the cell to the left. This
+        mirrors how python-docx reports merged cells for DOCX tables.
+        """
+        tables = []
+        try:
+            finder = page.find_tables()
+        except Exception:
+            return tables
+
+        for table in finder.tables:
+            if table.col_count < 2:
+                continue
+            rows = self._fill_merged_cells(table.extract())
+            rows = [row for row in rows if any(cell for cell in row)]
+            if not rows:
+                continue
+            tables.append({
+                'bbox': tuple(table.bbox),
+                'num_rows': len(rows),
+                'num_cols': table.col_count,
+                'header': rows[0],
+                'data_rows': rows[1:],
+            })
+        return tables
+
+    def _fill_merged_cells(self, raw_rows: list[list[Any]]) -> list[list[str]]:
+        """Normalize cell text and forward-fill cells covered by merges (None)."""
+        filled: list[list[str]] = []
+        for row_idx, row in enumerate(raw_rows):
+            out_row: list[str] = []
+            for col_idx, cell in enumerate(row):
+                if cell is None:
+                    # Covered by a merge: prefer the cell above (vertical
+                    # merge), otherwise the cell to the left (horizontal merge).
+                    if row_idx > 0 and col_idx < len(filled[row_idx - 1]) and filled[row_idx - 1][col_idx]:
+                        text = filled[row_idx - 1][col_idx]
+                    elif col_idx > 0 and out_row[col_idx - 1]:
+                        text = out_row[col_idx - 1]
+                    else:
+                        text = ""
+                else:
+                    text = " ".join(str(cell).split())
+                out_row.append(text)
+            filled.append(out_row)
+        return filled
+
+    @staticmethod
+    def _line_in_bboxes(line_bbox, bboxes) -> bool:
+        """True if the line's center point lies inside any of the given bboxes."""
+        if not bboxes or not line_bbox:
+            return False
+        cx = (line_bbox[0] + line_bbox[2]) / 2
+        cy = (line_bbox[1] + line_bbox[3]) / 2
+        return any(x0 <= cx <= x1 and y0 <= cy <= y1 for (x0, y0, x1, y1) in bboxes)
     
     def _apply_with_pypdf(self, file_input: Union[str, BinaryIO]) -> list[dict[str, Any]]:
         """Parse PDF using PyPDF with enhanced heuristics (fallback method)."""
@@ -110,20 +202,28 @@ class PdfParser:
         hierarchical_elements = self._reconstruct_hierarchy(flat_elements)
         return hierarchical_elements
     
-    def _extract_blocks_with_pymupdf(self, page) -> list[dict[str, Any]]:
-        """Extract text blocks with rich formatting using PyMuPDF."""
+    def _extract_blocks_with_pymupdf(self, page, exclude_bboxes=()) -> list[dict[str, Any]]:
+        """Extract text blocks with rich formatting using PyMuPDF.
+
+        Lines whose center falls inside one of ``exclude_bboxes`` (detected
+        table regions) are skipped so table text does not leak into the
+        paragraph/heading flow.
+        """
         blocks = []
-        
+
         # Get text dictionary with detailed formatting
         text_dict = page.get_text("dict")
-        
+
         for block in text_dict.get("blocks", []):
             # Skip image blocks
             if "lines" not in block:
                 continue
-            
+
+            lines = [line for line in block["lines"]
+                     if not self._line_in_bboxes(line.get("bbox"), exclude_bboxes)]
+
             # Group lines into paragraphs based on spatial and formatting analysis
-            paragraphs = self._group_lines_into_paragraphs(block["lines"])
+            paragraphs = self._group_lines_into_paragraphs(lines)
             
             for paragraph_lines in paragraphs:
                 if not paragraph_lines:
@@ -231,14 +331,18 @@ class PdfParser:
             
             # Check for paragraph continuation vs. new paragraph
             should_continue_paragraph = (
+                # A line starting with a list marker always starts a new
+                # paragraph, so consecutive list items are never glued together.
+                self._detect_line_marker(curr_line['text']) is None and
+
                 # Similar formatting
                 abs(prev_line['avg_size'] - curr_line['avg_size']) < 1 and
                 prev_line['font_family'] == curr_line['font_family'] and
                 prev_line['is_bold'] == curr_line['is_bold'] and
-                
+
                 # Reasonable vertical spacing (not too far apart)
                 vertical_gap <= paragraph_break_threshold and
-                
+
                 # Content flow indicators
                 self._lines_likely_connected(prev_line['text'], curr_line['text'])
             )
@@ -310,20 +414,68 @@ class PdfParser:
             'max_size': max(font_sizes)
         }
     
-    def _process_block_with_formatting(self, block: dict[str, Any], font_stats: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def _detect_line_marker(self, text: str) -> Optional[str]:
+        """Return the list-item content if the line starts with a list marker.
+
+        Recognizes bullet characters and simple numbering (``1.`` / ``1)``),
+        tolerating zero-width/non-breaking characters around the marker as
+        emitted by common PDF exporters. Returns None for non-list lines.
+        """
+        for pattern in (BULLET_ITEM_RE, NUMBERED_ITEM_RE):
+            match = pattern.match(text)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    def _compute_indent_tiers(self, blocks: list[dict[str, Any]]) -> list[float]:
+        """Cluster the x-positions of list-marker lines into indentation tiers.
+
+        The sorted tier index is the 0-indexed nesting level of a list item.
+        """
+        xs = sorted({round(block.get('x', 0), 1) for block in blocks
+                     if self._detect_line_marker(block.get('text', ''))})
+        tiers: list[float] = []
+        for x in xs:
+            if not tiers or x - tiers[-1] > 3.0:
+                tiers.append(x)
+        return tiers
+
+    @staticmethod
+    def _indent_level(x: float, indent_tiers: Optional[list[float]]) -> int:
+        """Map an x-position to its nearest indentation tier index (list level)."""
+        if not indent_tiers:
+            return 0
+        return min(range(len(indent_tiers)), key=lambda i: abs(indent_tiers[i] - x))
+
+    def _compute_heading_levels(self, blocks: list[dict[str, Any]], font_stats: dict[str, Any]) -> dict[float, int]:
+        """Map heading font sizes to normalized levels (largest size -> 1)."""
+        heading_sizes = sorted(
+            {round(block.get('font_size', 12), 1) for block in blocks
+             if block.get('text', '').strip() and self._is_heading_with_formatting(block, font_stats)},
+            reverse=True,
+        )
+        return {size: min(idx + 1, 6) for idx, size in enumerate(heading_sizes)}
+
+    def _process_block_with_formatting(self, block: dict[str, Any], font_stats: dict[str, Any],
+                                       indent_tiers: Optional[list[float]] = None) -> Optional[dict[str, Any]]:
         """Process a text block with rich formatting information."""
         text = block['text'].strip()
         if not text:
             return None
-            
-        font_size = block.get('font_size', 12)
-        is_bold = block.get('is_bold', False)
-        is_italic = block.get('is_italic', False)
-        
-        # Enhanced heading detection using multiple signals
-        is_heading = self._is_heading_with_formatting(block, font_stats)
-        
-        if is_heading:
+
+        # List items first: a line starting with a bullet/number marker is
+        # always a list item, never a heading or paragraph. All items share a
+        # single num_id so mixed bullet/numbered runs nest into one container.
+        marker_content = self._detect_line_marker(text)
+        if marker_content:
+            return {
+                "type": "list_item",
+                "level": self._indent_level(block.get('x', 0), indent_tiers),
+                "content": marker_content,
+                "num_id": -1,
+            }
+
+        if self._is_heading_with_formatting(block, font_stats):
             heading_level = self._determine_heading_level_advanced(block, font_stats)
             self.current_heading_level = heading_level
             return {
@@ -331,118 +483,52 @@ class PdfParser:
                 "level": heading_level,
                 "content": text
             }
-        
-        # List item detection with improved heuristics
-        list_match = self._detect_list_item_advanced(text, block)
-        if list_match:
-            return {
-                "type": "list_item",
-                "level": list_match['level'],
-                "content": list_match['content'],
-                "num_id": list_match['num_id']
-            }
-        
-        # Table detection (enhanced)
-        if self._is_table_row_advanced(text, block):
-            # For now, treat as paragraph - TODO: implement proper table grouping
-            pass
-        
+
         # Default to paragraph
         return {
             "type": "paragraph",
             "level": self.current_heading_level if self.current_heading_level > 0 else 0,
             "content": text
         }
-    
+
     def _is_heading_with_formatting(self, block: dict[str, Any], font_stats: dict[str, Any]) -> bool:
-        """Determine if block is a heading using multiple formatting signals."""
+        """Determine if block is a heading using font size and boldness.
+
+        A heading must either be notably larger than the document's body text
+        or be a short bold line that does not read like a sentence. Body-sized
+        non-bold lines (e.g. lead-ins ending with ':') are paragraphs, and
+        lines starting with a list marker are never headings.
+        """
         text = block['text'].strip()
+        if not text or self._detect_line_marker(text) is not None:
+            return False
+
         font_size = block.get('font_size', 12)
-        is_bold = block.get('is_bold', False)
-        font_family = block.get('font_family', '')
-        
-        avg_size = font_stats['avg_size']
-        
-        # Multiple signals for heading detection
-        signals = {
-            'large_font': font_size > avg_size * self.heading_font_threshold,
-            'bold_text': is_bold,
-            'short_line': len(text) < 100 and not text.endswith('.'),
-            'title_case': text.istitle(),
-            'all_caps': text.isupper() and len(text) < 50,
-            'ends_with_colon': text.endswith(':'),
-            'no_sentence_end': not text.endswith(('.', '!', '?')),
-            'significant_size': font_size > avg_size * 1.1
-        }
-        
-        # Weight the signals
-        score = 0
-        if signals['large_font']: score += 3
-        if signals['bold_text']: score += 2
-        if signals['short_line']: score += 1
-        if signals['title_case']: score += 1
-        if signals['all_caps']: score += 1
-        if signals['ends_with_colon']: score += 1
-        if signals['no_sentence_end']: score += 1
-        if signals['significant_size']: score += 1
-        
-        # Threshold for heading classification
-        return score >= 3
-    
+        body_size = font_stats.get('median_size') or font_stats.get('avg_size', 12)
+
+        if font_size > body_size * self.heading_font_threshold:
+            return True
+
+        return (
+            bool(block.get('is_bold'))
+            and len(text) < 100
+            and not text.endswith(('.', '!', '?', ':', ';', ','))
+        )
+
     def _determine_heading_level_advanced(self, block: dict[str, Any], font_stats: dict[str, Any]) -> int:
-        """Determine heading level using font size and formatting."""
+        """Determine heading level from the per-document font-size tiers.
+
+        Falls back to the ratio-based mapping when tiers are unavailable
+        (e.g. when called on synthetic blocks outside the main pipeline).
+        """
         font_size = block.get('font_size', 12)
-        is_bold = block.get('is_bold', False)
-        avg_size = font_stats['avg_size']
-        
-        ratio = font_size / avg_size
-        
-        # Adjust level based on formatting
-        if is_bold:
-            ratio *= 1.1  # Bold text gets slight boost
-            
-        if ratio >= 2.0:
-            return 1
-        elif ratio >= 1.6:
-            return 2
-        elif ratio >= 1.4:
-            return 3
-        elif ratio >= 1.2:
-            return 4
-        elif ratio >= 1.1:
-            return 5
-        else:
-            return 6
-    
-    def _detect_list_item_advanced(self, text: str, block: dict[str, Any]) -> Optional[dict[str, Any]]:
-        """Enhanced list item detection using text and positioning."""
-        # Use the existing list detection logic but with position awareness
-        basic_detection = self._detect_list_item(text)
-        
-        if basic_detection:
-            # Enhance with positioning information if available
-            x_pos = block.get('x', 0)
-            
-            # Use x-position to determine indentation level more accurately
-            if x_pos > 0:
-                # Assume every 36 points (0.5 inch) is an indent level
-                position_level = max(0, int(x_pos // 36))
-                # Use the more reliable of the two methods
-                level = max(basic_detection['level'], position_level)
-                basic_detection['level'] = level
-                
-        return basic_detection
-    
-    def _is_table_row_advanced(self, text: str, block: dict[str, Any]) -> bool:
-        """Enhanced table row detection using positioning and content."""
-        # Use existing basic detection
-        basic_table = self._is_table_row(text)
-        
-        # TODO: Add position-based table detection
-        # This could analyze alignment patterns and spacing
-        
-        return basic_table
-    
+        heading_levels = font_stats.get('heading_levels') or {}
+        size_key = round(font_size, 1)
+        if size_key in heading_levels:
+            return heading_levels[size_key]
+        return self._determine_heading_level(font_size, font_stats.get('avg_size', 12))
+
+
     def _extract_text_blocks_enhanced_heuristics(self, page) -> list[dict[str, Any]]:
         """Extract text blocks with enhanced heuristics (PyPDF fallback method)."""
         text_blocks = []

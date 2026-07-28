@@ -96,15 +96,72 @@ class TestDetectListItem:
         assert parser._detect_list_item(text) is None
 
 
-class TestDetectListItemAdvanced:
-    def test_x_position_can_deepen_level(self, parser):
-        # 80 points / 36 per indent => position level 2 beats text level 0.
-        result = parser._detect_list_item_advanced("- positioned bullet", {"x": 80})
-        assert result is not None
-        assert result["level"] == 2
+class TestLineMarkerDetection:
+    @pytest.mark.parametrize("text, content", [
+        ("●​ Phase 1: Requirements Analysis", "Phase 1: Requirements Analysis"),
+        ("10.​Test case 7: User interface testing", "Test case 7: User interface testing"),
+        ("- plain dash bullet", "plain dash bullet"),
+        ("• round bullet", "round bullet"),
+        ("3) parenthesized number", "parenthesized number"),
+    ])
+    def test_markers_detected_with_zero_width_separators(self, parser, text, content):
+        assert parser._detect_line_marker(text) == content
 
-    def test_non_list_stays_none_regardless_of_position(self, parser):
-        assert parser._detect_list_item_advanced("Just a paragraph.", {"x": 200}) is None
+    @pytest.mark.parametrize("text", [
+        "Just a paragraph.",
+        "1.5 million units were sold",  # decimal number, no marker separator
+        "Main project phases:",
+        "",
+    ])
+    def test_non_list_text_returns_none(self, parser, text):
+        assert parser._detect_line_marker(text) is None
+
+    def test_marker_line_is_never_a_heading(self, parser):
+        block = {"text": "●​ Phase 1: Requirements Analysis", "font_size": 20, "is_bold": True}
+        assert parser._is_heading_with_formatting(block, {"avg_size": 12}) is False
+
+
+class TestIndentTiers:
+    def test_x_positions_cluster_into_levels(self, parser):
+        blocks = [
+            {"text": "• top level", "x": 90.0},
+            {"text": "• nested", "x": 108.0},
+            {"text": "• deeply nested", "x": 126.0},
+            {"text": "• top again", "x": 90.4},  # jitter within tolerance
+            {"text": "Ordinary paragraph, ignored for tiers.", "x": 72.0},
+        ]
+        tiers = parser._compute_indent_tiers(blocks)
+        assert len(tiers) == 3
+        assert parser._indent_level(90.2, tiers) == 0
+        assert parser._indent_level(108.0, tiers) == 1
+        assert parser._indent_level(126.0, tiers) == 2
+
+    def test_no_tiers_maps_to_level_zero(self, parser):
+        assert parser._indent_level(200.0, []) == 0
+
+
+class TestMergedCellFill:
+    def test_horizontal_merge_fills_from_left(self, parser):
+        rows = parser._fill_merged_cells([["Spanning header", None, None]])
+        assert rows == [["Spanning header", "Spanning header", "Spanning header"]]
+
+    def test_vertical_merge_fills_from_above(self, parser):
+        rows = parser._fill_merged_cells([
+            ["Category", "value one"],
+            [None, "value two"],
+        ])
+        assert rows[1][0] == "Category"
+
+    def test_empty_string_cells_are_not_filled(self, parser):
+        rows = parser._fill_merged_cells([
+            ["a", "b"],
+            ["c", ""],
+        ])
+        assert rows[1] == ["c", ""]
+
+    def test_cell_whitespace_is_normalized(self, parser):
+        rows = parser._fill_merged_cells([["multi\nline  cell"]])
+        assert rows == [["multi line cell"]]
 
 
 class TestTableRowDetection:
