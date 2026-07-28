@@ -10,7 +10,6 @@ test_cases:
       - "Merged Vertically"
     expected_metadata:
       node_type: "table_rows"
-    xfail_pdf: true  # PDF format loses table structure and cell relationships
 
   - name: "(3,2)"
     search_text: "Cell (3,2)"
@@ -19,14 +18,19 @@ test_cases:
       - "Cell (3,0) begins a new row and"
     expected_metadata:
       node_type: "table_rows"
-    xfail_pdf: true  # PDF format loses complex table structure and context
 
   - name: "Example Table with Long context"
     search_text: "Example Table with Long context"
     num_chunks: 2
     expected_metadata:
       node_type: "table_rows"
-    xfail_pdf: true  # PDF format may not preserve table context as expected
+    # The committed sample_table.pdf export is truncated: it contains only the
+    # first section (1 page, ends after the merged-cells table). The heading
+    # "Example Table with Long context" and its table do not exist in the PDF
+    # (verified with both PyMuPDF and PyPDF raw text extraction), so no parser
+    # improvement can make this case pass until the PDF export is refreshed
+    # from sample_table.docx.
+    xfail_pdf: true
 
 # Global expectations for the document
 global_checks:
