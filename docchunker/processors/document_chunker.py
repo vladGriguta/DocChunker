@@ -73,7 +73,6 @@ class DocumentChunker:
             try:
                 return " | ".join(row_data)
             except TypeError:
-                print(0)
                 raise ValueError("Row data must be a list of strings.")
         return " | ".join([f"{header[i]}: {cell_data}" for i, cell_data in enumerate(row_data)])
 
