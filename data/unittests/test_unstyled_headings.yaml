@@ -1,0 +1,68 @@
+document: "unstyled_headings.docx"
+description: "Heading inference for documents without Word heading styles: headings faked with bold runs, larger fonts, manual numbering and ALL-CAPS lines must still provide chunk context"
+
+test_cases:
+  - name: "body_under_numbered_large_bold_heading"
+    search_text: "why Atlas exists"
+    expected_in_chunk:
+      - "1. Introduction"
+    expected_metadata:
+      node_type: "paragraph"
+
+  - name: "two_level_numbered_heading_context"
+    search_text: "stores it for later analysis"
+    expected_in_chunk:
+      - "1. Introduction"
+      - "1.1 Purpose"
+
+  # Negative: a short plain paragraph without bold/caps/size emphasis must NOT
+  # become a heading; it stays body text and is merged with its neighbors.
+  - name: "short_plain_paragraph_is_not_a_heading"
+    search_text: "platform working group"
+    expected_in_chunk:
+      - "Refer to the glossary for terminology"
+      - "1.1 Purpose"
+    expected_metadata:
+      node_type: "paragraph_group"
+
+  # Negative: bold inline emphasis inside a long paragraph must NOT become a
+  # heading; the paragraph survives intact as content under "1.2 Scope".
+  - name: "inline_bold_emphasis_is_not_a_heading"
+    search_text: "explicitly out of scope for the first release"
+    expected_in_chunk:
+      - "1.2 Scope"
+      - "Real-time alerting"
+    expected_metadata:
+      node_type: "paragraph"
+
+  - name: "list_under_inferred_headings"
+    search_text: "Registry service tracks device identity"
+    expected_in_chunk:
+      - "2. System Architecture"
+      - "2.1 Components"
+    expected_metadata:
+      node_type: "list_container"
+
+  - name: "three_level_numbering_prefix_context"
+    search_text: "durable event log"
+    expected_in_chunk:
+      - "2. System Architecture"
+      - "2.2 Data Flow"
+      - "2.2.1 Ingestion Pipeline"
+
+  - name: "table_under_bold_only_heading"
+    search_text: "Release manager"
+    expected_in_chunk:
+      - "2. System Architecture"
+      - "Deployment Checklist"
+    expected_metadata:
+      node_type: "table_rows"
+
+  - name: "all_caps_heading_context"
+    search_text: "without operator interaction"
+    expected_in_chunk:
+      - "APPENDIX A GLOSSARY"
+
+global_checks:
+  min_chunks: 8
+  max_empty_chunks: 0
